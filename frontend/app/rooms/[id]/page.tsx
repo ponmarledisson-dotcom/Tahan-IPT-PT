@@ -172,9 +172,13 @@ export default function RoomDetails() {
               </div>
             </div>
 
-            <button className="w-full mt-6 py-3 bg-[#5c3d2e] text-white rounded-xl font-bold hover:bg-[#7a5240] transition">
+            <a
+              href={`/register?id=${params.get("id")}&name=${name}&type=${type}&price=${price}`}
+              className="block w-full mt-6 py-3 bg-[#5c3d2e] text-white rounded-xl font-bold hover:bg-[#7a5240] transition text-center"
+            >
+              {" "}
               GET ROOM
-            </button>
+            </a>
 
             <p className="text-xs text-[#9c8878] text-center mt-3">
               You will be asked to register or log in after clicking GET ROOM
