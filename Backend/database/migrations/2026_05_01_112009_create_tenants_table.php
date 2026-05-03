@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('contact');
             $table->string('email')->unique();
             $table->string('address');
-            $table->string('emergency_name');
+            $table->string('emergency_name')->nullable();
             $table->string('emergency_contact');
             $table->unsignedBigInteger('room_id')->nullable();
             $table->enum('status', ['active', 'moved_out', 'pending'])->default('pending');

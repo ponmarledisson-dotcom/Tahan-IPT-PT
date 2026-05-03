@@ -55,20 +55,48 @@ function RegisterForm() {
       setForm({ ...form, [name]: value });
     }
   };
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!agreed) {
       alert("Please agree to the contract first!");
       return;
     }
-    // Build confirmation URL with all form data
-    const query = new URLSearchParams({
-      ...form,
-      roomName,
-      roomType,
-      roomPrice,
-    }).toString();
 
-    window.location.href = `/confirmation?${query}`;
+    try {
+      const response = await fetch("http://localhost:8000/api/tenants", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          first_name: form.firstName,
+          last_name: form.lastName,
+          sex: form.sex,
+          birthdate: form.birthdate,
+          age: parseInt(form.age),
+          contact: form.contact,
+          email: form.email,
+          address: form.address,
+          emergency_contact: form.emergencyContact,
+          room_id: roomId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const query = new URLSearchParams({
+          ...form,
+          roomName,
+          roomType,
+          roomPrice,
+        }).toString();
+        window.location.href = `/confirmation?${query}`;
+      } else {
+        alert("Error: " + JSON.stringify(data.errors));
+      }
+    } catch (error) {
+      alert("Failed to connect to server. Make sure Laravel is running.");
+    }
   };
 
   return (
