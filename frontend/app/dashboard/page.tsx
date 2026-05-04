@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import Image from "next/image";
 
 type User = {
   id: number;
@@ -10,6 +10,9 @@ type User = {
   role: string;
   gender?: string;
   contact_number?: string;
+  emergency_contact_name?: string;
+  emergency_contact_number?: string;
+  profile_photo?: string;
 };
 
 export default function DashboardPage() {
@@ -20,6 +23,22 @@ export default function DashboardPage() {
     "overview",
   );
 
+  // Profile edit state
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    gender: "",
+    contact_number: "",
+    emergency_contact_name: "",
+    emergency_contact_number: "",
+  });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     const stored = localStorage.getItem("user");
@@ -29,9 +48,11 @@ export default function DashboardPage() {
       return;
     }
 
-    // Verify token with backend
     fetch("http://localhost:8000/api/me", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
     })
       .then((res) => {
         if (!res.ok) throw new Error("Unauthorized");
@@ -39,6 +60,14 @@ export default function DashboardPage() {
       })
       .then((data) => {
         setUser(data);
+        setForm({
+          name: data.name ?? "",
+          email: data.email ?? "",
+          gender: data.gender ?? "",
+          contact_number: data.contact_number ?? "",
+          emergency_contact_name: data.emergency_contact_name ?? "",
+          emergency_contact_number: data.emergency_contact_number ?? "",
+        });
         setLoading(false);
       })
       .catch(() => {
@@ -52,11 +81,69 @@ export default function DashboardPage() {
     const token = localStorage.getItem("token");
     await fetch("http://localhost:8000/api/logout", {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
     });
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     router.push("/");
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const token = localStorage.getItem("token");
+
+    const formData = new FormData();
+    formData.append("name", form.name);
+    formData.append("email", form.email);
+    formData.append("gender", form.gender);
+    formData.append("contact_number", form.contact_number);
+    formData.append("emergency_contact_name", form.emergency_contact_name);
+    formData.append("emergency_contact_number", form.emergency_contact_number);
+    formData.append("_method", "POST");
+    if (photoFile) formData.append("profile_photo", photoFile);
+
+    try {
+      const res = await fetch("http://localhost:8000/api/profile/update", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setUser(data.user);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        setEditing(false);
+        setSaveSuccess(true);
+        setPhotoFile(null);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      }
+    } catch {
+      console.error("Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getPhotoUrl = () => {
+    if (photoPreview) return photoPreview;
+    if (user?.profile_photo)
+      return `http://localhost:8000/storage/${user.profile_photo}`;
+    return null;
   };
 
   if (loading) {
@@ -69,18 +156,38 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
+  const photoUrl = getPhotoUrl();
+
   return (
     <main className="min-h-screen bg-[#fdf6ec]">
       {/* Top nav */}
       <nav className="bg-white border-b border-[#ede0d0] px-6 py-4 flex justify-between items-center">
         <h1 className="text-xl font-black text-[#3b2314]">TAHAN</h1>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-[#9c8878]">
-            Hi,{" "}
-            <span className="font-bold text-[#3b2314]">
-              {user.name.split(" ")[0]}
+          {/* Avatar */}
+          <div className="flex items-center gap-2">
+            {photoUrl ? (
+              <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-[#5c3d2e]">
+                <Image
+                  src={photoUrl}
+                  alt="avatar"
+                  width={32}
+                  height={32}
+                  className="object-cover w-full h-full"
+                />
+              </div>
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-[#5c3d2e] text-white flex items-center justify-center text-sm font-bold">
+                {user.name[0]?.toUpperCase()}
+              </div>
+            )}
+            <span className="text-sm text-[#9c8878]">
+              Hi,{" "}
+              <span className="font-bold text-[#3b2314]">
+                {user.name.split(" ")[0]}
+              </span>
             </span>
-          </span>
+          </div>
           <button
             onClick={handleLogout}
             className="text-sm px-4 py-2 border border-[#d6c4b0] text-[#5c3d2e] rounded-xl font-semibold hover:bg-[#f5ede0] transition"
@@ -165,33 +272,199 @@ export default function DashboardPage() {
         {/* Profile tab */}
         {activeTab === "profile" && (
           <div className="bg-white rounded-2xl border border-[#ede0d0] p-8 shadow-sm">
-            <h3 className="text-lg font-bold text-[#3b2314] mb-6">
-              My Profile
-            </h3>
-            <div className="flex flex-col gap-4">
-              {[
-                { label: "Full Name", value: user.name },
-                { label: "Email", value: user.email },
-                { label: "Gender", value: user.gender ?? "—" },
-                { label: "Contact Number", value: user.contact_number ?? "—" },
-                { label: "Role", value: user.role },
-              ].map((row) => (
-                <div
-                  key={row.label}
-                  className="flex justify-between py-3 border-b border-[#f0e6d6] last:border-0"
-                >
-                  <span className="text-sm font-semibold text-[#9c8878]">
-                    {row.label}
-                  </span>
-                  <span className="text-sm text-[#3b2314] font-medium">
-                    {row.value}
+            {/* Success message */}
+            {saveSuccess && (
+              <div className="mb-6 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-xl">
+                ✅ Profile updated successfully!
+              </div>
+            )}
+
+            {/* Profile photo */}
+            <div className="flex flex-col items-center mb-8">
+              <div className="relative">
+                {photoUrl ? (
+                  <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-[#5c3d2e]">
+                    <Image
+                      src={photoUrl}
+                      alt="profile"
+                      width={96}
+                      height={96}
+                      className="object-cover w-full h-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-[#5c3d2e] text-white flex items-center justify-center text-3xl font-bold border-4 border-[#5c3d2e]">
+                    {user.name[0]?.toUpperCase()}
+                  </div>
+                )}
+                {editing && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute bottom-0 right-0 w-8 h-8 bg-[#5c3d2e] text-white rounded-full flex items-center justify-center text-sm hover:bg-[#7a5240] transition shadow"
+                  >
+                    📷
+                  </button>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoChange}
+                className="hidden"
+              />
+              {editing && (
+                <p className="text-xs text-[#9c8878] mt-2">
+                  Click the camera icon to change photo
+                </p>
+              )}
+              {!editing && (
+                <div className="mt-3 text-center">
+                  <p className="font-bold text-[#3b2314] text-lg">
+                    {user.name}
+                  </p>
+                  <p className="text-sm text-[#9c8878]">{user.email}</p>
+                  <span className="text-xs bg-[#f5ede0] text-[#5c3d2e] px-3 py-1 rounded-full font-semibold mt-1 inline-block capitalize">
+                    {user.role}
                   </span>
                 </div>
-              ))}
+              )}
             </div>
-            <button className="mt-6 w-full py-3 border border-[#d6c4b0] text-[#5c3d2e] font-bold rounded-xl hover:bg-[#f5ede0] transition text-sm">
-              Edit Profile (coming soon)
-            </button>
+
+            {/* View mode */}
+            {!editing && (
+              <>
+                <div className="flex flex-col gap-0">
+                  {[
+                    { label: "Full Name", value: user.name },
+                    { label: "Email", value: user.email },
+                    { label: "Gender", value: user.gender ?? "—" },
+                    {
+                      label: "Contact Number",
+                      value: user.contact_number ?? "—",
+                    },
+                    {
+                      label: "Emergency Contact Name",
+                      value: user.emergency_contact_name ?? "—",
+                    },
+                    {
+                      label: "Emergency Contact Number",
+                      value: user.emergency_contact_number ?? "—",
+                    },
+                  ].map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex justify-between py-3 border-b border-[#f0e6d6] last:border-0"
+                    >
+                      <span className="text-sm font-semibold text-[#9c8878]">
+                        {row.label}
+                      </span>
+                      <span className="text-sm text-[#3b2314] font-medium">
+                        {row.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setEditing(true)}
+                  className="mt-6 w-full py-3 bg-[#5c3d2e] text-white font-bold rounded-xl hover:bg-[#7a5240] transition text-sm"
+                >
+                  ✏️ Edit Profile
+                </button>
+              </>
+            )}
+
+            {/* Edit mode */}
+            {editing && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    {
+                      label: "Full Name",
+                      key: "name",
+                      placeholder: "Juan Dela Cruz",
+                    },
+                    {
+                      label: "Email",
+                      key: "email",
+                      placeholder: "juan@email.com",
+                    },
+                    {
+                      label: "Contact Number",
+                      key: "contact_number",
+                      placeholder: "09XXXXXXXXX",
+                    },
+                    {
+                      label: "Emergency Contact Name",
+                      key: "emergency_contact_name",
+                      placeholder: "Maria Dela Cruz",
+                    },
+                    {
+                      label: "Emergency Contact Number",
+                      key: "emergency_contact_number",
+                      placeholder: "09XXXXXXXXX",
+                    },
+                  ].map((field) => (
+                    <div key={field.key} className="flex flex-col gap-1">
+                      <label className="text-sm font-semibold text-[#5c3d2e]">
+                        {field.label}
+                      </label>
+                      <input
+                        type="text"
+                        value={form[field.key as keyof typeof form]}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            [field.key]: e.target.value,
+                          }))
+                        }
+                        placeholder={field.placeholder}
+                        className="px-4 py-2 rounded-xl border border-[#e8ddd0] bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition text-sm"
+                      />
+                    </div>
+                  ))}
+
+                  {/* Gender dropdown */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-semibold text-[#5c3d2e]">
+                      Gender
+                    </label>
+                    <select
+                      value={form.gender}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, gender: e.target.value }))
+                      }
+                      className="px-4 py-2 rounded-xl border border-[#e8ddd0] bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition text-sm"
+                    >
+                      <option value="">Select</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => {
+                      setEditing(false);
+                      setPhotoFile(null);
+                      setPhotoPreview(null);
+                    }}
+                    className="flex-1 py-3 border border-[#d6c4b0] text-[#5c3d2e] font-bold rounded-xl hover:bg-[#f5ede0] transition text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex-1 py-3 bg-[#5c3d2e] text-white font-bold rounded-xl hover:bg-[#7a5240] transition text-sm disabled:opacity-60"
+                  >
+                    {saving ? "Saving…" : "Save Changes"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

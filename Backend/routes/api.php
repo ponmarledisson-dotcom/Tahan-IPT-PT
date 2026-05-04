@@ -35,10 +35,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Admin only
     Route::middleware('admin')->group(function () {
+
+        // Tenant accounts
         Route::get('/admin/tenants',                   [AdminController::class, 'allTenants']);
         Route::get('/admin/tenants/{id}',              [AdminController::class, 'getTenant']);
         Route::put('/admin/tenants/{id}',              [AdminController::class, 'updateTenant']);
         Route::patch('/admin/tenants/{id}/deactivate', [AdminController::class, 'deactivate']);
         Route::patch('/admin/tenants/{id}/activate',   [AdminController::class, 'activate']);
+
+        // Applications
+        Route::get('/admin/applications',                [AdminController::class, 'allApplications']);
+        Route::patch('/admin/applications/{id}/approve', [AdminController::class, 'approveApplication']);
+        Route::patch('/admin/applications/{id}/reject',  [AdminController::class, 'rejectApplication']);
     });
 });

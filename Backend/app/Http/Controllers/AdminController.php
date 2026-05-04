@@ -3,10 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Tenant;
 use Illuminate\Http\Request;
 
 class AdminController extends Controller
 {
+    // Room name map
+    private array $roomNames = [
+        1 => 'Room 101',
+        2 => 'Room 102',
+        3 => 'Room 103',
+        4 => 'Room 201',
+        5 => 'Room 202',
+        6 => 'Room 301',
+        7 => 'Room 302',
+        8 => 'Room 303',
+        9 => 'Room 304',
+    ];
+
     // GET /api/admin/tenants
     public function allTenants()
     {
@@ -55,7 +69,6 @@ class AdminController extends Controller
     {
         $tenant = User::where('role', 'tenant')->findOrFail($id);
         $tenant->update(['status' => 'inactive']);
-
         return response()->json(['message' => 'Tenant account deactivated.']);
     }
 
@@ -64,7 +77,50 @@ class AdminController extends Controller
     {
         $tenant = User::where('role', 'tenant')->findOrFail($id);
         $tenant->update(['status' => 'active']);
-
         return response()->json(['message' => 'Tenant account activated.']);
+    }
+
+    // GET /api/admin/applications
+    public function allApplications()
+    {
+        $applications = Tenant::orderBy('created_at', 'desc')->get();
+
+        $applications->transform(function ($app) {
+            $app->room_name = $this->roomNames[$app->room_id] ?? 'Room ' . $app->room_id;
+            return $app;
+        });
+
+        return response()->json($applications);
+    }
+
+    // PATCH /api/admin/applications/{id}/approve
+    public function approveApplication(Request $request, $id)
+    {
+        $request->validate([
+            'move_in_date' => 'required|date',
+        ]);
+
+        $tenant = Tenant::findOrFail($id);
+        $tenant->update([
+            'status'       => 'approved',
+            'move_in_date' => $request->move_in_date,
+        ]);
+
+        return response()->json([
+            'message' => 'Application approved.',
+            'tenant'  => $tenant,
+        ]);
+    }
+
+    // PATCH /api/admin/applications/{id}/reject
+    public function rejectApplication($id)
+    {
+        $tenant = Tenant::findOrFail($id);
+        $tenant->update(['status' => 'rejected']);
+
+        return response()->json([
+            'message' => 'Application rejected.',
+            'tenant'  => $tenant,
+        ]);
     }
 }

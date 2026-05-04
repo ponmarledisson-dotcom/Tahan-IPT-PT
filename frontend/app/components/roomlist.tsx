@@ -42,9 +42,9 @@ const rooms: Room[] = [
     gender_type: "Male Only",
     price: 1500,
     rating: 4.2,
-    available: false,
+    available: true,
     capacity: 5,
-    occupied: 5,
+    occupied: 3,
     image: "/room1.jpg",
     description: "Affordable bedspace ideal for students on a budget.",
     amenities: ["WiFi included", "Shared bathroom", "Locker provided"],
@@ -92,9 +92,9 @@ const rooms: Room[] = [
     gender_type: "Male Only",
     price: 1800,
     rating: 3.9,
-    available: false,
+    available: true,
     capacity: 6,
-    occupied: 6,
+    occupied: 4,
     image: "/room1.jpg",
     description: "Budget-friendly male bedspace near the common area.",
     amenities: ["WiFi included", "Shared bathroom", "Fan"],
@@ -121,6 +121,51 @@ const rooms: Room[] = [
       "TV",
     ],
     rules: ["No smoking", "No pets", "No overnight visitors"],
+  },
+  {
+    id: 7,
+    name: "Room 302",
+    type: "Bedspacer",
+    gender_type: "Female Only",
+    price: 1600,
+    rating: 4.1,
+    available: false,
+    capacity: 4,
+    occupied: 4,
+    image: "/room1.jpg",
+    description: "Fully occupied girls bedspace on the third floor.",
+    amenities: ["WiFi included", "Shared bathroom", "Locker provided"],
+    rules: ["No smoking", "Curfew at 10PM"],
+  },
+  {
+    id: 8,
+    name: "Room 303",
+    type: "Private",
+    gender_type: "Male Only",
+    price: 3800,
+    rating: 4.3,
+    available: false,
+    capacity: 1,
+    occupied: 1,
+    image: "/room1.jpg",
+    description: "Male private room currently occupied.",
+    amenities: ["WiFi included", "Air conditioning", "Private bathroom"],
+    rules: ["No smoking", "No overnight visitors"],
+  },
+  {
+    id: 9,
+    name: "Room 304",
+    type: "Bedspacer",
+    gender_type: "Mixed",
+    price: 2200,
+    rating: 4.0,
+    available: false,
+    capacity: 5,
+    occupied: 5,
+    image: "/room1.jpg",
+    description: "Mixed bedspace on the third floor, currently full.",
+    amenities: ["WiFi included", "Shared bathroom", "Fan", "Study desk"],
+    rules: ["No smoking", "Curfew at 10PM", "No loud music"],
   },
 ];
 
@@ -300,32 +345,78 @@ function RoomModal({ room, onClose }: { room: Room; onClose: () => void }) {
 
 export default function RoomListings() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const availableRooms = rooms.filter((r) => r.available);
-  const unavailableRooms = rooms.filter((r) => !r.available);
+  const [filter, setFilter] = useState<"All" | "Private" | "Bedspacer">("All");
+
+  const filteredRooms =
+    filter === "All" ? rooms : rooms.filter((r) => r.type === filter);
+  const availableRooms = filteredRooms.filter((r) => r.available);
+  const unavailableRooms = filteredRooms.filter((r) => !r.available);
 
   return (
     <section className="px-8 py-10">
-      <h2 className="text-3xl font-bold text-[#3b2314] mb-6">
-        Available Rooms{" "}
-        <span className="ml-3 text-base font-normal text-[#9c8878]">
-          ({availableRooms.length})
-        </span>
-      </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {availableRooms.map((room) => (
-          <RoomCard key={room.id} room={room} onSelect={setSelectedRoom} />
-        ))}
+      {/* Header + Filter */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div>
+          <h2 className="text-3xl font-bold text-[#3b2314]">Our Rooms</h2>
+          <p className="text-[#9c8878] text-sm mt-1">
+            {availableRooms.length} available · {unavailableRooms.length} fully
+            occupied
+          </p>
+        </div>
+
+        {/* Filter Buttons */}
+        <div className="flex gap-2 bg-[#f5ede0] p-1 rounded-xl">
+          {(["All", "Private", "Bedspacer"] as const).map((type) => (
+            <button
+              key={type}
+              onClick={() => setFilter(type)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                filter === type
+                  ? "bg-[#5c3d2e] text-white shadow"
+                  : "text-[#9c8878] hover:text-[#5c3d2e]"
+              }`}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
       </div>
 
+      {/* Available Rooms */}
+      {availableRooms.length > 0 ? (
+        <>
+          <h3 className="text-xl font-bold text-[#3b2314] mb-4">
+            Available Rooms
+            <span className="ml-2 text-base font-normal text-[#9c8878]">
+              ({availableRooms.length})
+            </span>
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {availableRooms.map((room) => (
+              <RoomCard key={room.id} room={room} onSelect={setSelectedRoom} />
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="text-center py-16 text-[#9c8878]">
+          <p className="text-5xl mb-4">🏠</p>
+          <p className="text-lg font-semibold">
+            No available rooms for this filter.
+          </p>
+          <p className="text-sm mt-1">Try selecting a different type.</p>
+        </div>
+      )}
+
+      {/* Unavailable Rooms */}
       {unavailableRooms.length > 0 && (
         <>
           <SectionDivider />
-          <h2 className="text-2xl font-bold text-[#9c8878] mb-2">
-            Fully Occupied{" "}
-            <span className="ml-3 text-base font-normal">
+          <h3 className="text-xl font-bold text-[#9c8878] mb-2">
+            Fully Occupied
+            <span className="ml-2 text-base font-normal">
               ({unavailableRooms.length})
             </span>
-          </h2>
+          </h3>
           <p className="text-sm text-[#b5a598] mb-6">
             These rooms are currently at full capacity. Check back later or
             contact the landlord to be waitlisted.
