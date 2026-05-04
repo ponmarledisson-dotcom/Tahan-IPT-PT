@@ -3,6 +3,60 @@ import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Block any key that matches the regex from being typed */
+function blockKeys(regex: RegExp) {
+  return (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (regex.test(e.key)) e.preventDefault();
+  };
+}
+
+// ── Reusable field component ──────────────────────────────────────────────────
+function Field({
+  label,
+  name,
+  type = "text",
+  placeholder,
+  fullWidth = false,
+  value,
+  onChange,
+  error,
+  onKeyDown,
+  readOnly,
+}: {
+  label: string;
+  name: string;
+  type?: string;
+  placeholder?: string;
+  fullWidth?: boolean;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  error?: string;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  readOnly?: boolean;
+}) {
+  return (
+    <div className={`flex flex-col gap-1 ${fullWidth ? "sm:col-span-2" : ""}`}>
+      <label className="text-sm font-semibold text-[#5c3d2e]">{label}</label>
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+        readOnly={readOnly}
+        className={`px-4 py-2 rounded-xl border bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition
+          ${readOnly ? "bg-[#f5ede0] text-[#9c8878] cursor-not-allowed" : ""}
+          ${error ? "border-red-400 bg-red-50" : "border-[#e8ddd0]"}`}
+      />
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  );
+}
+
+// ── Root export (wraps in Suspense for useSearchParams) ───────────────────────
 export default function Register() {
   return (
     <Suspense
@@ -17,6 +71,7 @@ export default function Register() {
   );
 }
 
+// ── Main form ─────────────────────────────────────────────────────────────────
 function RegisterForm() {
   const params = useSearchParams();
   const roomName = params.get("name") || "Room";
@@ -43,9 +98,9 @@ function RegisterForm() {
     confirmPassword: "",
   });
 
-  // ── Field change handler ──────────────────────────────────────────────────
+  // ── Change handler ──────────────────────────────────────────────────────────
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
 
@@ -59,50 +114,114 @@ function RegisterForm() {
     } else {
       setForm((prev) => ({ ...prev, [name]: value }));
     }
+
+    // Clear error on change
     setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  // ── Validation ────────────────────────────────────────────────────────────
+  // ── Validation ──────────────────────────────────────────────────────────────
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.firstName.trim()) e.firstName = "First name is required.";
-    if (!form.lastName.trim()) e.lastName = "Last name is required.";
+
+    // Name fields — min 2 chars, no numbers
+    const nameRegex = /^[a-zA-Z\s\-'.]+$/;
+    if (!form.firstName.trim()) {
+      e.firstName = "First name is required.";
+    } else if (form.firstName.trim().length < 2) {
+      e.firstName = "First name must be at least 2 characters.";
+    } else if (!nameRegex.test(form.firstName)) {
+      e.firstName = "First name must not contain numbers or special characters.";
+    }
+
+    if (!form.lastName.trim()) {
+      e.lastName = "Last name is required.";
+    } else if (form.lastName.trim().length < 2) {
+      e.lastName = "Last name must be at least 2 characters.";
+    } else if (!nameRegex.test(form.lastName)) {
+      e.lastName = "Last name must not contain numbers or special characters.";
+    }
+
+    // Sex
     if (!form.sex) e.sex = "Please select your sex.";
-    if (!form.birthdate) e.birthdate = "Birthdate is required.";
-    if (!form.contact.trim()) e.contact = "Contact number is required.";
-    if (!form.email.includes("@")) e.email = "Enter a valid email address.";
-    if (!form.address.trim()) e.address = "Address is required.";
-    if (!form.emergencyName.trim())
+
+    // Birthdate — must be at least 15 years old
+    if (!form.birthdate) {
+      e.birthdate = "Birthdate is required.";
+    } else {
+      const today = new Date();
+      const birth = new Date(form.birthdate);
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+      if (age < 15) e.birthdate = "You must be at least 15 years old to apply.";
+    }
+
+    // Contact — 09XXXXXXXXX or +639XXXXXXXXX
+    const contactRegex = /^(09\d{9}|\+639\d{9})$/;
+    if (!form.contact.trim()) {
+      e.contact = "Contact number is required.";
+    } else if (!contactRegex.test(form.contact.trim())) {
+      e.contact = "Enter a valid PH number: 09XXXXXXXXX or +639XXXXXXXXX.";
+    }
+
+    // Email — proper format
+    const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    if (!form.email.trim()) {
+      e.email = "Email is required.";
+    } else if (!emailRegex.test(form.email.trim())) {
+      e.email = "Enter a valid email address (e.g. juan@gmail.com).";
+    }
+
+    // Address — min 10 chars
+    if (!form.address.trim()) {
+      e.address = "Address is required.";
+    } else if (form.address.trim().length < 10) {
+      e.address = "Please enter a complete address (at least 10 characters).";
+    }
+
+    // Emergency contact name — min 2 chars, no numbers
+    if (!form.emergencyName.trim()) {
       e.emergencyName = "Emergency contact name is required.";
-    if (!form.emergencyContact.trim())
+    } else if (form.emergencyName.trim().length < 2) {
+      e.emergencyName = "Name must be at least 2 characters.";
+    } else if (!nameRegex.test(form.emergencyName)) {
+      e.emergencyName = "Name must not contain numbers or special characters.";
+    }
+
+    // Emergency contact number
+    if (!form.emergencyContact.trim()) {
       e.emergencyContact = "Emergency contact number is required.";
-    if (form.password.length < 8)
-      e.password = "Password must be at least 8 characters.";
-    if (form.password !== form.confirmPassword)
+    } else if (!contactRegex.test(form.emergencyContact.trim())) {
+      e.emergencyContact = "Enter a valid PH number: 09XXXXXXXXX or +639XXXXXXXXX.";
+    }
+
+    // Password — min 8 chars, at least 1 uppercase, at least 1 number
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!form.password) {
+      e.password = "Password is required.";
+    } else if (!passwordRegex.test(form.password)) {
+      e.password =
+        "Password must be at least 8 characters, include one uppercase letter and one number.";
+    }
+
+    // Confirm password
+    if (!form.confirmPassword) {
+      e.confirmPassword = "Please confirm your password.";
+    } else if (form.password !== form.confirmPassword) {
       e.confirmPassword = "Passwords do not match.";
+    }
+
+    // Contract agreement
     if (!agreed) e.agreed = "You must agree to the contract.";
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  // ── Submit ────────────────────────────────────────────────────────────────
+  // ── Submit handler ──────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true);
-
-    console.log("Sending data:", {
-      first_name: form.firstName,
-      last_name: form.lastName,
-      sex: form.sex,
-      birthdate: form.birthdate,
-      age: parseInt(form.age),
-      contact: form.contact,
-      email: form.email,
-      address: form.address,
-      emergency_name: "",
-      emergency_contact: form.emergencyContact,
-      room_id: roomId,
-    });
 
     try {
       // Step 1 — Save tenant application record
@@ -130,7 +249,6 @@ function RegisterForm() {
       const tenantData = await tenantRes.json();
 
       if (!tenantRes.ok) {
-        // Map Laravel validation errors back to fields
         if (tenantData.errors) {
           const mapped: Record<string, string> = {};
           Object.entries(tenantData.errors).forEach(([k, v]) => {
@@ -184,11 +302,11 @@ function RegisterForm() {
         return;
       }
 
-      // Step 3 — Save token so they're instantly logged in after confirmation
+      // Step 3 — Save token
       localStorage.setItem("token", authData.token);
       localStorage.setItem("user", JSON.stringify(authData.user));
 
-      // Step 4 — Redirect to confirmation page
+      // Step 4 — Redirect to confirmation
       const query = new URLSearchParams({
         firstName: form.firstName,
         lastName: form.lastName,
@@ -205,38 +323,11 @@ function RegisterForm() {
     }
   };
 
-  // ── Reusable field component ──────────────────────────────────────────────
-  const Field = ({
-    label,
-    name,
-    type = "text",
-    placeholder,
-    fullWidth = false,
-  }: {
-    label: string;
-    name: keyof typeof form;
-    type?: string;
-    placeholder?: string;
-    fullWidth?: boolean;
-  }) => (
-    <div className={`flex flex-col gap-1 ${fullWidth ? "sm:col-span-2" : ""}`}>
-      <label className="text-sm font-semibold text-[#5c3d2e]">{label}</label>
-      <input
-        type={type}
-        name={name}
-        value={form[name]}
-        onChange={handleChange}
-        placeholder={placeholder}
-        className={`px-4 py-2 rounded-xl border bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition
-          ${errors[name] ? "border-red-400 bg-red-50" : "border-[#e8ddd0]"}`}
-      />
-      {errors[name] && <p className="text-xs text-red-500">{errors[name]}</p>}
-    </div>
-  );
-
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <main className="min-h-screen py-10 px-6">
       <div className="max-w-3xl mx-auto flex flex-col gap-6">
+
         {/* Header */}
         <div>
           <Link
@@ -281,11 +372,13 @@ function RegisterForm() {
                 </div>
                 {i < 3 && (
                   <div
-                    className={`flex-1 h-1 mx-2 mb-4 rounded ${i < 2 ? "bg-[#5c3d2e]" : "bg-[#e8ddd0]"}`}
+                    className={`flex-1 h-1 mx-2 mb-4 rounded ${
+                      i < 2 ? "bg-[#5c3d2e]" : "bg-[#e8ddd0]"
+                    }`}
                   />
                 )}
               </div>
-            ),
+            )
           )}
         </div>
 
@@ -395,14 +488,32 @@ function RegisterForm() {
             Personal Information
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="First Name" name="firstName" placeholder="Juan" />
-            <Field label="Last Name" name="lastName" placeholder="Dela Cruz" />
 
-            {/* Sex dropdown */}
+            {/* First Name — block digits */}
+            <Field
+              label="First Name"
+              name="firstName"
+              placeholder="Juan"
+              value={form.firstName}
+              onChange={handleChange}
+              onKeyDown={blockKeys(/^[0-9]$/)}
+              error={errors.firstName}
+            />
+
+            {/* Last Name — block digits */}
+            <Field
+              label="Last Name"
+              name="lastName"
+              placeholder="Dela Cruz"
+              value={form.lastName}
+              onChange={handleChange}
+              onKeyDown={blockKeys(/^[0-9]$/)}
+              error={errors.lastName}
+            />
+
+            {/* Sex */}
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-semibold text-[#5c3d2e]">
-                Sex
-              </label>
+              <label className="text-sm font-semibold text-[#5c3d2e]">Sex</label>
               <select
                 name="sex"
                 value={form.sex}
@@ -429,6 +540,11 @@ function RegisterForm() {
                 name="birthdate"
                 value={form.birthdate}
                 onChange={handleChange}
+                max={new Date(
+                  new Date().setFullYear(new Date().getFullYear() - 15)
+                )
+                  .toISOString()
+                  .split("T")[0]}
                 className={`px-4 py-2 rounded-xl border bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition
                   ${errors.birthdate ? "border-red-400 bg-red-50" : "border-[#e8ddd0]"}`}
               />
@@ -437,7 +553,7 @@ function RegisterForm() {
               )}
             </div>
 
-            {/* Age - read only */}
+            {/* Age — read only */}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-semibold text-[#5c3d2e]">
                 Age (auto-calculated)
@@ -452,34 +568,76 @@ function RegisterForm() {
               />
             </div>
 
+            {/* Contact — block letters */}
             <Field
               label="Contact / Mobile Number"
               name="contact"
-              placeholder="09XXXXXXXXX"
+              placeholder="09XXXXXXXXX or +639XXXXXXXXX"
               type="tel"
+              value={form.contact}
+              onChange={handleChange}
+              onKeyDown={(e) => {
+                // Allow: digits, +, Backspace, Delete, Tab, Arrow keys
+                const allowed = [
+                  "Backspace", "Delete", "Tab", "ArrowLeft", "ArrowRight", "Home", "End",
+                ];
+                if (!allowed.includes(e.key) && !/^[0-9+]$/.test(e.key)) {
+                  e.preventDefault();
+                }
+              }}
+              error={errors.contact}
             />
+
+            {/* Email */}
             <Field
               label="Email"
               name="email"
               placeholder="juan@email.com"
               type="email"
+              value={form.email}
+              onChange={handleChange}
+              error={errors.email}
             />
+
+            {/* Emergency Contact Name — block digits */}
             <Field
               label="Emergency Contact Name"
               name="emergencyName"
               placeholder="Maria Dela Cruz"
+              value={form.emergencyName}
+              onChange={handleChange}
+              onKeyDown={blockKeys(/^[0-9]$/)}
+              error={errors.emergencyName}
             />
+
+            {/* Emergency Contact Number — block letters */}
             <Field
               label="Emergency Contact Number"
               name="emergencyContact"
-              placeholder="09XXXXXXXXX"
+              placeholder="09XXXXXXXXX or +639XXXXXXXXX"
               type="tel"
+              value={form.emergencyContact}
+              onChange={handleChange}
+              onKeyDown={(e) => {
+                const allowed = [
+                  "Backspace", "Delete", "Tab", "ArrowLeft", "ArrowRight", "Home", "End",
+                ];
+                if (!allowed.includes(e.key) && !/^[0-9+]$/.test(e.key)) {
+                  e.preventDefault();
+                }
+              }}
+              error={errors.emergencyContact}
             />
+
+            {/* Address */}
             <Field
               label="Permanent Home Address"
               name="address"
               placeholder="123 Street, Barangay, City"
               fullWidth
+              value={form.address}
+              onChange={handleChange}
+              error={errors.address}
             />
           </div>
         </div>
@@ -497,18 +655,24 @@ function RegisterForm() {
               label="Password"
               name="password"
               type="password"
-              placeholder="Min. 8 characters"
+              placeholder="Min. 8 chars, 1 uppercase, 1 number"
+              value={form.password}
+              onChange={handleChange}
+              error={errors.password}
             />
             <Field
               label="Confirm Password"
               name="confirmPassword"
               type="password"
               placeholder="Repeat your password"
+              value={form.confirmPassword}
+              onChange={handleChange}
+              error={errors.confirmPassword}
             />
           </div>
         </div>
 
-        {/* Submit Button */}
+        {/* Submit */}
         <button
           onClick={handleSubmit}
           disabled={loading}
