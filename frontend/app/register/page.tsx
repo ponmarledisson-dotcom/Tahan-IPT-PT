@@ -61,6 +61,20 @@ function RegisterForm() {
       return;
     }
 
+    console.log("Sending data:", {
+      first_name: form.firstName,
+      last_name: form.lastName,
+      sex: form.sex,
+      birthdate: form.birthdate,
+      age: parseInt(form.age),
+      contact: form.contact,
+      email: form.email,
+      address: form.address,
+      emergency_name: "",
+      emergency_contact: form.emergencyContact,
+      room_id: roomId,
+    });
+
     try {
       const response = await fetch("http://localhost:8000/api/tenants", {
         method: "POST",
@@ -95,7 +109,8 @@ function RegisterForm() {
         alert("Error: " + JSON.stringify(data.errors));
       }
     } catch (error) {
-      alert("Failed to connect to server. Make sure Laravel is running.");
+      alert("Error: " + JSON.stringify(error));
+      console.log(error);
     }
   };
 
