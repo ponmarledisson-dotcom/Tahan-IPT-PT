@@ -14,10 +14,10 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'full_name'                => 'required|string|max:255',
+            'name'                     => 'required|string|max:255',
             'email'                    => 'required|email|unique:users,email',
             'password'                 => 'required|string|min:8|confirmed',
-            'gender'                   => 'required|in:Male,Female,Other',
+            'gender'                   => 'nullable|in:Male,Female,Other',
             'contact_number'           => 'required|string|max:20',
             'emergency_contact_name'   => 'required|string|max:255',
             'emergency_contact_number' => 'required|string|max:20',
@@ -32,7 +32,7 @@ class AuthController extends Controller
         }
 
         $user = User::create([
-            'name'                     => $request->full_name,
+            'name'                     => $request->name,
             'email'                    => $request->email,
             'password'                 => Hash::make($request->password),
             'gender'                   => $request->gender,

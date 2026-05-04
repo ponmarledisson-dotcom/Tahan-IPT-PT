@@ -43,6 +43,7 @@ function RegisterForm() {
     confirmPassword: "",
   });
 
+  // ── Field change handler ──────────────────────────────────────────────────
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
@@ -61,6 +62,7 @@ function RegisterForm() {
     setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
+  // ── Validation ────────────────────────────────────────────────────────────
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.firstName.trim()) e.firstName = "First name is required.";
@@ -83,15 +85,33 @@ function RegisterForm() {
     return Object.keys(e).length === 0;
   };
 
+  // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true);
+
+    console.log("Sending data:", {
+      first_name: form.firstName,
+      last_name: form.lastName,
+      sex: form.sex,
+      birthdate: form.birthdate,
+      age: parseInt(form.age),
+      contact: form.contact,
+      email: form.email,
+      address: form.address,
+      emergency_name: "",
+      emergency_contact: form.emergencyContact,
+      room_id: roomId,
+    });
 
     try {
       // Step 1 — Save tenant application record
       const tenantRes = await fetch("http://localhost:8000/api/tenants", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({
           first_name: form.firstName,
           last_name: form.lastName,
@@ -110,6 +130,7 @@ function RegisterForm() {
       const tenantData = await tenantRes.json();
 
       if (!tenantRes.ok) {
+        // Map Laravel validation errors back to fields
         if (tenantData.errors) {
           const mapped: Record<string, string> = {};
           Object.entries(tenantData.errors).forEach(([k, v]) => {
@@ -128,7 +149,10 @@ function RegisterForm() {
       // Step 2 — Create login account
       const authRes = await fetch("http://localhost:8000/api/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({
           name: `${form.firstName} ${form.lastName}`,
           email: form.email,
@@ -160,11 +184,11 @@ function RegisterForm() {
         return;
       }
 
-      // Step 3 — Save token
+      // Step 3 — Save token so they're instantly logged in after confirmation
       localStorage.setItem("token", authData.token);
       localStorage.setItem("user", JSON.stringify(authData.user));
 
-      // Step 4 — Redirect to confirmation
+      // Step 4 — Redirect to confirmation page
       const query = new URLSearchParams({
         firstName: form.firstName,
         lastName: form.lastName,
@@ -181,6 +205,7 @@ function RegisterForm() {
     }
   };
 
+  // ── Reusable field component ──────────────────────────────────────────────
   const Field = ({
     label,
     name,
@@ -373,6 +398,7 @@ function RegisterForm() {
             <Field label="First Name" name="firstName" placeholder="Juan" />
             <Field label="Last Name" name="lastName" placeholder="Dela Cruz" />
 
+            {/* Sex dropdown */}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-semibold text-[#5c3d2e]">
                 Sex
@@ -393,6 +419,7 @@ function RegisterForm() {
               )}
             </div>
 
+            {/* Birthdate */}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-semibold text-[#5c3d2e]">
                 Birthdate
@@ -410,6 +437,7 @@ function RegisterForm() {
               )}
             </div>
 
+            {/* Age - read only */}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-semibold text-[#5c3d2e]">
                 Age (auto-calculated)
