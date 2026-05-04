@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\HandleCors;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -12,8 +13,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+<<<<<<< HEAD
         $middleware->alias([
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
+=======
+        $middleware->prepend(HandleCors::class);
+        $middleware->validateCsrfTokens(except: [
+            'api/*'
+>>>>>>> 3186b139165e6bb0b352f70ad6159a45e6e521cc
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -90,6 +90,20 @@ function RegisterForm() {
     if (!validate()) return;
     setLoading(true);
 
+    console.log("Sending data:", {
+      first_name: form.firstName,
+      last_name: form.lastName,
+      sex: form.sex,
+      birthdate: form.birthdate,
+      age: parseInt(form.age),
+      contact: form.contact,
+      email: form.email,
+      address: form.address,
+      emergency_name: "",
+      emergency_contact: form.emergencyContact,
+      room_id: roomId,
+    });
+
     try {
       // Step 1 — Save tenant application record
       const tenantRes = await fetch("http://localhost:8000/api/tenants", {
@@ -128,6 +142,7 @@ function RegisterForm() {
         setLoading(false);
         return;
       }
+<<<<<<< HEAD
 
       // Step 2 — Create login account
       const authRes = await fetch("http://localhost:8000/api/register", {
@@ -182,6 +197,11 @@ function RegisterForm() {
       setErrors({ general: "Cannot connect to server. Is Laravel running?" });
     } finally {
       setLoading(false);
+=======
+    } catch (error) {
+      alert("Error: " + JSON.stringify(error));
+      console.log(error);
+>>>>>>> 3186b139165e6bb0b352f70ad6159a45e6e521cc
     }
   };
 
