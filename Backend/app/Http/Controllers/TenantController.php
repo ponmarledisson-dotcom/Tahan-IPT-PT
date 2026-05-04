@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 
 class TenantController extends Controller
 {
-    // POST /api/tenants - save new tenant
+    // POST /api/tenants - save new tenant application
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -28,7 +28,7 @@ class TenantController extends Controller
 
         return response()->json([
             'message' => 'Application submitted successfully!',
-            'tenant'  => $tenant
+            'tenant'  => $tenant,
         ], 201);
     }
 
@@ -39,10 +39,55 @@ class TenantController extends Controller
         return response()->json($tenants);
     }
 
-    // GET /api/tenants/1 - get one tenant
+    // GET /api/tenants/{id} - get one tenant
     public function show($id)
     {
         $tenant = Tenant::findOrFail($id);
         return response()->json($tenant);
+    }
+
+    // GET /api/profile - returns logged-in user's profile
+    public function profile(Request $request)
+    {
+        return response()->json($request->user());
+    }
+
+    // POST /api/profile/update - tenant updates their own profile
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'name'                     => 'required|string|max:255',
+            'email'                    => 'required|email|unique:users,email,' . $user->id,
+            'gender'                   => 'nullable|in:Male,Female,Other',
+            'contact_number'           => 'required|string|max:20',
+            'emergency_contact_name'   => 'required|string|max:255',
+            'emergency_contact_number' => 'required|string|max:20',
+        ]);
+
+        $user->update($request->only([
+            'name',
+            'email',
+            'gender',
+            'contact_number',
+            'emergency_contact_name',
+            'emergency_contact_number',
+        ]));
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'user'    => $user,
+        ]);
+    }
+
+    // GET /api/dashboard - tenant dashboard data
+    public function dashboard(Request $request)
+    {
+        $user = $request->user();
+        return response()->json([
+            'user'    => $user,
+            'message' => 'Welcome to your dashboard, ' . $user->name . '!',
+        ]);
     }
 }
