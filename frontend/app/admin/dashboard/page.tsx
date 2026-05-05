@@ -42,10 +42,23 @@ type Payment = {
   user?: { name: string; email: string };
 };
 
+type MaintenanceRequest = {
+  id: number;
+  user_id: number;
+  title: string;
+  description: string;
+  photo?: string;
+  status: "pending" | "in_progress" | "resolved";
+  admin_response?: string;
+  created_at: string;
+  user?: { name: string; email: string };
+  tenant?: { first_name: string; last_name: string; room_id: number };
+};
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    "overview" | "applications" | "tenants" | "payments"
+    "overview" | "applications" | "tenants" | "payments" | "maintenance"
   >("overview");
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -68,6 +81,22 @@ export default function AdminDashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [adminName, setAdminName] = useState("Admin");
 
+  // Maintenance states
+  const [maintenanceRequests, setMaintenanceRequests] = useState<
+    MaintenanceRequest[]
+  >([]);
+  const [maintenanceFilter, setMaintenanceFilter] = useState<
+    "all" | "pending" | "in_progress" | "resolved"
+  >("all");
+  const [respondModal, setRespondModal] = useState<MaintenanceRequest | null>(
+    null,
+  );
+  const [respondForm, setRespondForm] = useState({
+    status: "in_progress",
+    admin_response: "",
+  });
+  const [respondSaving, setRespondSaving] = useState(false);
+
   // Add payment modal
   const [addPaymentModal, setAddPaymentModal] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
@@ -80,9 +109,7 @@ export default function AdminDashboardPage() {
   });
   const [paymentSaving, setPaymentSaving] = useState(false);
 
-  // Approved applications for payment dropdown
   const approvedApps = applications.filter((a) => a.status === "approved");
-
   const token = () => localStorage.getItem("token") ?? "";
 
   useEffect(() => {
@@ -103,29 +130,38 @@ export default function AdminDashboardPage() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [tenantsRes, appsRes, paymentsRes] = await Promise.all([
-        fetch("http://localhost:8000/api/admin/tenants", {
-          headers: {
-            Authorization: `Bearer ${token()}`,
-            Accept: "application/json",
-          },
-        }),
-        fetch("http://localhost:8000/api/admin/applications", {
-          headers: {
-            Authorization: `Bearer ${token()}`,
-            Accept: "application/json",
-          },
-        }),
-        fetch("http://localhost:8000/api/admin/payments", {
-          headers: {
-            Authorization: `Bearer ${token()}`,
-            Accept: "application/json",
-          },
-        }),
-      ]);
+      const [tenantsRes, appsRes, paymentsRes, maintenanceRes] =
+        await Promise.all([
+          fetch("http://localhost:8000/api/admin/tenants", {
+            headers: {
+              Authorization: `Bearer ${token()}`,
+              Accept: "application/json",
+            },
+          }),
+          fetch("http://localhost:8000/api/admin/applications", {
+            headers: {
+              Authorization: `Bearer ${token()}`,
+              Accept: "application/json",
+            },
+          }),
+          fetch("http://localhost:8000/api/admin/payments", {
+            headers: {
+              Authorization: `Bearer ${token()}`,
+              Accept: "application/json",
+            },
+          }),
+          fetch("http://localhost:8000/api/admin/maintenance", {
+            headers: {
+              Authorization: `Bearer ${token()}`,
+              Accept: "application/json",
+            },
+          }),
+        ]);
       if (tenantsRes.ok) setTenants(await tenantsRes.json());
       if (appsRes.ok) setApplications(await appsRes.json());
       if (paymentsRes.ok) setPayments(await paymentsRes.json());
+      if (maintenanceRes.ok)
+        setMaintenanceRequests(await maintenanceRes.json());
     } finally {
       setLoading(false);
     }
@@ -325,6 +361,42 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleRespond = async () => {
+    if (!respondModal) return;
+    setRespondSaving(true);
+    try {
+      const res = await fetch(
+        `http://localhost:8000/api/admin/maintenance/${respondModal.id}/respond`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token()}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(respondForm),
+        },
+      );
+      if (res.ok) {
+        setMaintenanceRequests((prev) =>
+          prev.map((r) =>
+            r.id === respondModal.id
+              ? {
+                  ...r,
+                  status: respondForm.status as MaintenanceRequest["status"],
+                  admin_response: respondForm.admin_response,
+                }
+              : r,
+          ),
+        );
+        setRespondModal(null);
+        setRespondForm({ status: "in_progress", admin_response: "" });
+      }
+    } finally {
+      setRespondSaving(false);
+    }
+  };
+
   const handleLogout = async () => {
     await fetch("http://localhost:8000/api/logout", {
       method: "POST",
@@ -348,6 +420,9 @@ export default function AdminDashboardPage() {
   const filteredPayments = payments.filter((p) =>
     paymentFilter === "all" ? true : p.status === paymentFilter,
   );
+  const filteredMaintenance = maintenanceRequests.filter((r) =>
+    maintenanceFilter === "all" ? true : r.status === maintenanceFilter,
+  );
 
   const stats = {
     total: tenants.length,
@@ -362,6 +437,9 @@ export default function AdminDashboardPage() {
     totalUnpaid: payments
       .filter((p) => p.status === "unpaid")
       .reduce((sum, p) => sum + Number(p.amount), 0),
+    pendingMaintenance: maintenanceRequests.filter(
+      (r) => r.status === "pending",
+    ).length,
   };
 
   const navItems = [
@@ -374,6 +452,26 @@ export default function AdminDashboardPage() {
     },
     { key: "tenants", icon: "👥", label: "Tenant Management", badge: 0 },
     { key: "payments", icon: "💳", label: "Payments", badge: 0 },
+    {
+      key: "maintenance",
+      icon: "🔧",
+      label: "Maintenance",
+      badge: stats.pendingMaintenance,
+    },
+    {
+      key: "messages",
+      icon: "💬",
+      label: "Messages",
+      badge: 0,
+      href: "/messages",
+    },
+    {
+      key: "group-chat",
+      icon: "👥",
+      label: "Group Chat",
+      badge: 0,
+      href: "/group-chat",
+    },
   ];
 
   return (
@@ -411,7 +509,10 @@ export default function AdminDashboardPage() {
           {navItems.map((item) => (
             <button
               key={item.key}
-              onClick={() => setActiveTab(item.key as typeof activeTab)}
+              onClick={() => {
+                if (item.href) router.push(item.href);
+                else setActiveTab(item.key as typeof activeTab);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold transition relative ${
                 activeTab === item.key
                   ? "bg-[#5c3d2e] text-white"
@@ -452,6 +553,7 @@ export default function AdminDashboardPage() {
               {activeTab === "applications" && "Applications"}
               {activeTab === "tenants" && "Tenant Management"}
               {activeTab === "payments" && "Payments Management"}
+              {activeTab === "maintenance" && "Maintenance Requests"}
             </h2>
             <p className="text-xs text-[#9c8878]">
               {new Date().toLocaleDateString("en-PH", {
@@ -958,7 +1060,6 @@ export default function AdminDashboardPage() {
           {/* ── PAYMENTS TAB ── */}
           {activeTab === "payments" && (
             <>
-              {/* Payment summary cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <div className="bg-white rounded-2xl border border-[#ede0d0] p-5 shadow-sm text-center">
                   <p className="text-xs text-[#9c8878] font-semibold uppercase tracking-wide mb-1">
@@ -986,7 +1087,6 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              {/* Filter + Add button */}
               <div className="flex flex-wrap gap-2 mb-6 justify-between items-center">
                 <div className="flex gap-2">
                   {(["all", "paid", "unpaid"] as const).map((s) => (
@@ -1011,7 +1111,6 @@ export default function AdminDashboardPage() {
                 </button>
               </div>
 
-              {/* Payments table */}
               {loading ? (
                 <p className="text-center text-[#9c8878] py-16 animate-pulse">
                   Loading…
@@ -1094,11 +1193,7 @@ export default function AdminDashboardPage() {
                           </td>
                           <td className="px-4 py-4">
                             <span
-                              className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                payment.status === "paid"
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-red-100 text-red-600"
-                              }`}
+                              className={`px-2 py-1 rounded-full text-xs font-bold ${payment.status === "paid" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}
                             >
                               {payment.status}
                             </span>
@@ -1130,6 +1225,118 @@ export default function AdminDashboardPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── MAINTENANCE TAB ── */}
+          {activeTab === "maintenance" && (
+            <>
+              <div className="flex gap-2 mb-6 flex-wrap">
+                {(["all", "pending", "in_progress", "resolved"] as const).map(
+                  (s) => (
+                    <button
+                      key={s}
+                      onClick={() => setMaintenanceFilter(s)}
+                      className={`px-4 py-2 rounded-xl text-sm font-bold capitalize transition ${
+                        maintenanceFilter === s
+                          ? "bg-[#5c3d2e] text-white"
+                          : "border border-[#d6c4b0] text-[#5c3d2e] hover:bg-[#f5ede0]"
+                      }`}
+                    >
+                      {s === "in_progress" ? "In Progress" : s}
+                    </button>
+                  ),
+                )}
+              </div>
+
+              {loading ? (
+                <p className="text-center text-[#9c8878] py-16 animate-pulse">
+                  Loading…
+                </p>
+              ) : filteredMaintenance.length === 0 ? (
+                <div className="text-center py-16">
+                  <p className="text-4xl mb-3">🔧</p>
+                  <p className="font-bold text-[#3b2314]">
+                    No maintenance requests
+                  </p>
+                  <p className="text-sm text-[#9c8878] mt-1">
+                    Requests from tenants will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {filteredMaintenance.map((req) => (
+                    <div
+                      key={req.id}
+                      className="bg-white rounded-2xl border border-[#ede0d0] p-5 shadow-sm"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-bold text-[#3b2314]">
+                            {req.title}
+                          </h4>
+                          <p className="text-xs text-[#9c8878]">
+                            By {req.user?.name ?? "Unknown"} ·{" "}
+                            {new Date(req.created_at).toLocaleDateString(
+                              "en-PH",
+                              {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              },
+                            )}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-bold ${
+                            req.status === "resolved"
+                              ? "bg-green-100 text-green-700"
+                              : req.status === "in_progress"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-yellow-100 text-yellow-700"
+                          }`}
+                        >
+                          {req.status === "in_progress"
+                            ? "In Progress"
+                            : req.status}
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#9c8878] mb-3">
+                        {req.description}
+                      </p>
+                      {req.photo && (
+                        <img
+                          src={`http://localhost:8000/storage/${req.photo}`}
+                          alt="maintenance"
+                          className="max-h-48 rounded-xl object-cover mb-3"
+                        />
+                      )}
+                      {req.admin_response && (
+                        <div className="bg-[#f5ede0] rounded-xl p-3 mb-3">
+                          <p className="text-xs font-bold text-[#5c3d2e] mb-1">
+                            Your Response:
+                          </p>
+                          <p className="text-sm text-[#3b2314]">
+                            {req.admin_response}
+                          </p>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => {
+                          setRespondModal(req);
+                          setRespondForm({
+                            status: req.status,
+                            admin_response: req.admin_response ?? "",
+                          });
+                        }}
+                        className="px-4 py-2 bg-[#5c3d2e] text-white text-xs font-bold rounded-xl hover:bg-[#7a5240] transition"
+                      >
+                        {req.admin_response ? "Update Response" : "Respond"}
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </>
@@ -1249,7 +1456,6 @@ export default function AdminDashboardPage() {
               Add Payment Record
             </h3>
             <div className="flex flex-col gap-4">
-              {/* Tenant selector */}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-semibold text-[#5c3d2e]">
                   Select Tenant
@@ -1295,8 +1501,6 @@ export default function AdminDashboardPage() {
                   ))}
                 </select>
               </div>
-
-              {/* Month */}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-semibold text-[#5c3d2e]">
                   Month
@@ -1311,8 +1515,6 @@ export default function AdminDashboardPage() {
                   className="px-4 py-2 rounded-xl border border-[#e8ddd0] bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition text-sm"
                 />
               </div>
-
-              {/* Amount */}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-semibold text-[#5c3d2e]">
                   Amount (₱)
@@ -1327,8 +1529,6 @@ export default function AdminDashboardPage() {
                   className="px-4 py-2 rounded-xl border border-[#e8ddd0] bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition text-sm"
                 />
               </div>
-
-              {/* Due date */}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-semibold text-[#5c3d2e]">
                   Due Date
@@ -1342,8 +1542,6 @@ export default function AdminDashboardPage() {
                   className="px-4 py-2 rounded-xl border border-[#e8ddd0] bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition text-sm"
                 />
               </div>
-
-              {/* Notes */}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-semibold text-[#5c3d2e]">
                   Notes (optional)
@@ -1359,7 +1557,6 @@ export default function AdminDashboardPage() {
                 />
               </div>
             </div>
-
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {
@@ -1389,6 +1586,73 @@ export default function AdminDashboardPage() {
                 className="flex-1 py-3 bg-[#5c3d2e] text-white font-bold rounded-xl hover:bg-[#7a5240] transition text-sm disabled:opacity-50"
               >
                 {paymentSaving ? "Saving…" : "Add Payment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Respond Modal */}
+      {respondModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-black text-[#3b2314] mb-1">
+              Respond to Request
+            </h3>
+            <p className="text-sm text-[#9c8878] mb-4 font-semibold">
+              {respondModal.title}
+            </p>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-semibold text-[#5c3d2e]">
+                  Update Status
+                </label>
+                <select
+                  value={respondForm.status}
+                  onChange={(e) =>
+                    setRespondForm((p) => ({ ...p, status: e.target.value }))
+                  }
+                  className="px-4 py-2 rounded-xl border border-[#e8ddd0] bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition text-sm"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-semibold text-[#5c3d2e]">
+                  Response Message
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Write your response to the tenant…"
+                  value={respondForm.admin_response}
+                  onChange={(e) =>
+                    setRespondForm((p) => ({
+                      ...p,
+                      admin_response: e.target.value,
+                    }))
+                  }
+                  className="px-4 py-2 rounded-xl border border-[#e8ddd0] bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition text-sm resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setRespondModal(null);
+                  setRespondForm({ status: "in_progress", admin_response: "" });
+                }}
+                className="flex-1 py-3 border border-[#d6c4b0] text-[#5c3d2e] font-bold rounded-xl hover:bg-[#f5ede0] transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRespond}
+                disabled={respondSaving}
+                className="flex-1 py-3 bg-[#5c3d2e] text-white font-bold rounded-xl hover:bg-[#7a5240] transition text-sm disabled:opacity-50"
+              >
+                {respondSaving ? "Saving…" : "Save Response"}
               </button>
             </div>
           </div>

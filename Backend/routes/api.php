@@ -6,6 +6,7 @@ use App\Http\Controllers\TenantController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\MaintenanceController;
 
 // ── Rooms (public) ────────────────────────────────────────────────────────────
 Route::get('/rooms',      [RoomController::class, 'index']);
@@ -34,11 +35,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // Dashboard
     Route::get('/dashboard', [TenantController::class, 'dashboard']);
 
-    // ← ADDED: tenant application status for dashboard
+    // Tenant application status
     Route::get('/my-application', [TenantController::class, 'myApplication']);
 
     // Payments (tenant)
     Route::get('/payments', [PaymentController::class, 'index']);
+
+    // Maintenance (tenant)
+    Route::get('/maintenance',  [MaintenanceController::class, 'index']);
+    Route::post('/maintenance', [MaintenanceController::class, 'store']);
 
     // Admin only
     Route::middleware('admin')->group(function () {
@@ -60,5 +65,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/applications',                [AdminController::class, 'allApplications']);
         Route::patch('/admin/applications/{id}/approve', [AdminController::class, 'approveApplication']);
         Route::patch('/admin/applications/{id}/reject',  [AdminController::class, 'rejectApplication']);
+
+        // Maintenance (admin)
+        Route::get('/admin/maintenance',                    [MaintenanceController::class, 'adminIndex']);
+        Route::patch('/admin/maintenance/{id}/respond',     [MaintenanceController::class, 'respond']);
     });
 });

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tenant;
+use App\Models\Room;
 use Illuminate\Http\Request;
 
 class TenantController extends Controller
@@ -21,8 +22,28 @@ class TenantController extends Controller
             'address'           => 'required|string',
             'emergency_name'    => 'required|string',
             'emergency_contact' => 'required|string',
-            'room_id'           => 'required|integer',
+            'room_id'           => 'nullable|integer',
         ]);
+
+        // No room selected — skip tenant record creation entirely
+        if (empty($validated['room_id'])) {
+            return response()->json([
+                'message' => 'No room selected. Account will be created only.',
+            ], 200);
+        }
+
+        // Room/gender check
+        $room = Room::find($validated['room_id']);
+
+        if (!$room) {
+            return response()->json(['message' => 'Room not found.'], 404);
+        }
+
+        if ($room->gender !== 'Mixed' && $room->gender !== $validated['sex']) {
+            return response()->json([
+                'message' => 'This room is for ' . $room->gender . ' tenants only.',
+            ], 422);
+        }
 
         $tenant = Tenant::create($validated);
 
@@ -68,7 +89,6 @@ class TenantController extends Controller
         ]);
 
         if ($request->hasFile('profile_photo')) {
-            // Delete old photo if exists
             if ($user->profile_photo && file_exists(public_path('uploads/' . $user->profile_photo))) {
                 unlink(public_path('uploads/' . $user->profile_photo));
             }

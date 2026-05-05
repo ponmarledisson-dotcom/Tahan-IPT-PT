@@ -77,7 +77,7 @@ function RegisterForm() {
   const roomName = params.get("name") || "Room";
   const roomType = params.get("type") || "Private";
   const roomPrice = params.get("price") || "0";
-  const roomId = params.get("id") || "1";
+  const roomId = params.get("id") || "";
 
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -242,7 +242,7 @@ function RegisterForm() {
           address: form.address,
           emergency_name: form.emergencyName,
           emergency_contact: form.emergencyContact,
-          room_id: roomId,
+          room_id: roomId ? parseInt(roomId) : null,
         }),
       });
 

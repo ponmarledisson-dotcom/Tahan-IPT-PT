@@ -7,17 +7,23 @@ use Illuminate\Http\Request;
 
 class RoomController extends Controller
 {
-    // GET /api/rooms - get all rooms
-    public function index()
+    public function index(Request $request)
     {
-        $rooms = Room::all();
-        return response()->json($rooms);
-    }
+        $query = Room::query();
 
-    // GET /api/rooms/1 - get one room
-    public function show($id)
-    {
-        $room = Room::findOrFail($id);
-        return response()->json($room);
+        if ($request->has('type') && $request->type !== 'All') {
+            $query->where('type', $request->type);
+        }
+
+        if ($request->has('gender') && $request->gender !== 'All') {
+            $query->where('gender', $request->gender);
+        }
+
+        if ($request->has('search') && $request->search !== '') {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+
+        $rooms = $query->get();
+        return response()->json($rooms);
     }
 }
