@@ -32,28 +32,31 @@ class TenantController extends Controller
         ], 201);
     }
 
-    // GET /api/tenants
+    // GET /api/tenants - get all tenants (admin)
     public function index()
     {
-        return response()->json(Tenant::all());
+        $tenants = Tenant::all();
+        return response()->json($tenants);
     }
 
-    // GET /api/tenants/{id}
+    // GET /api/tenants/{id} - get one tenant
     public function show($id)
     {
-        return response()->json(Tenant::findOrFail($id));
+        $tenant = Tenant::findOrFail($id);
+        return response()->json($tenant);
     }
 
-    // GET /api/profile
+    // GET /api/profile - returns logged-in user's profile
     public function profile(Request $request)
     {
         return response()->json($request->user());
     }
 
-    // POST /api/profile/update
+    // POST /api/profile/update - tenant updates their own profile
     public function updateProfile(Request $request)
     {
         $user = $request->user();
+
         $request->validate([
             'name'                     => 'required|string|max:255',
             'email'                    => 'required|email|unique:users,email,' . $user->id,
@@ -61,15 +64,38 @@ class TenantController extends Controller
             'contact_number'           => 'required|string|max:20',
             'emergency_contact_name'   => 'required|string|max:255',
             'emergency_contact_number' => 'required|string|max:20',
+            'profile_photo'            => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
-        $user->update($request->only([
-            'name', 'email', 'gender',
-            'contact_number', 'emergency_contact_name', 'emergency_contact_number',
-        ]));
-        return response()->json(['message' => 'Profile updated successfully.', 'user' => $user]);
+
+        if ($request->hasFile('profile_photo')) {
+            // Delete old photo if exists
+            if ($user->profile_photo && file_exists(public_path('uploads/' . $user->profile_photo))) {
+                unlink(public_path('uploads/' . $user->profile_photo));
+            }
+
+            $file = $request->file('profile_photo');
+            $filename = time() . '_' . $user->id . '.' . $file->getClientOriginalExtension();
+            $file->move(public_path('uploads'), $filename);
+            $user->profile_photo = $filename;
+        }
+
+        $user->update([
+            'name'                     => $request->name,
+            'email'                    => $request->email,
+            'gender'                   => $request->gender,
+            'contact_number'           => $request->contact_number,
+            'emergency_contact_name'   => $request->emergency_contact_name,
+            'emergency_contact_number' => $request->emergency_contact_number,
+            'profile_photo'            => $user->profile_photo,
+        ]);
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'user'    => $user,
+        ]);
     }
 
-    // GET /api/dashboard
+    // GET /api/dashboard - tenant dashboard data
     public function dashboard(Request $request)
     {
         $user = $request->user();
@@ -78,35 +104,4 @@ class TenantController extends Controller
             'message' => 'Welcome to your dashboard, ' . $user->name . '!',
         ]);
     }
-
-    // GET /api/my-application ← ADDED: tenant sees their own application status
-    public function myApplication(Request $request)
-    {
-        $user   = $request->user();
-        $tenant = Tenant::where('email', $user->email)->latest()->first();
-
-        if (!$tenant) {
-            return response()->json(null);
-        }
-
-        // Use room name map since your rooms are in the DB
-        $roomNames = [
-            1 => 'Room 101', 2 => 'Room 102', 3 => 'Room 103',
-            4 => 'Room 201', 5 => 'Room 202', 6 => 'Room 301',
-            7 => 'Room 302', 8 => 'Room 303', 9 => 'Room 304',
-        ];
-
-        return response()->json([
-            'id'           => $tenant->id,
-            'first_name'   => $tenant->first_name,
-            'last_name'    => $tenant->last_name,
-            'room_id'      => $tenant->room_id,
-            'status'       => $tenant->status,
-            'move_in_date' => $tenant->move_in_date,
-            'room'         => [
-                'name' => $roomNames[$tenant->room_id] ?? 'Room ' . $tenant->room_id,
-                'type' => null,
-            ],
-        ]);
-    }
-} 
+}

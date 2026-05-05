@@ -158,7 +158,6 @@ export default function DashboardPage() {
     formData.append("contact_number", form.contact_number);
     formData.append("emergency_contact_name", form.emergency_contact_name);
     formData.append("emergency_contact_number", form.emergency_contact_number);
-    formData.append("_method", "POST");
     if (photoFile) formData.append("profile_photo", photoFile);
 
     try {
@@ -177,6 +176,7 @@ export default function DashboardPage() {
         setEditing(false);
         setSaveSuccess(true);
         setPhotoFile(null);
+        setPhotoPreview(null);
         setTimeout(() => setSaveSuccess(false), 3000);
       }
     } catch {
@@ -189,7 +189,7 @@ export default function DashboardPage() {
   const getPhotoUrl = () => {
     if (photoPreview) return photoPreview;
     if (user?.profile_photo)
-      return `http://localhost:8000/storage/${user.profile_photo}`;
+      return `http://localhost:8000/uploads/${user.profile_photo}`;
     return null;
   };
 
@@ -335,6 +335,7 @@ export default function DashboardPage() {
                   width={32}
                   height={32}
                   className="object-cover w-full h-full"
+                  unoptimized={true}
                 />
               </div>
             ) : (
@@ -596,6 +597,7 @@ export default function DashboardPage() {
                       width={96}
                       height={96}
                       className="object-cover w-full h-full"
+                      unoptimized={true}
                     />
                   </div>
                 ) : (
