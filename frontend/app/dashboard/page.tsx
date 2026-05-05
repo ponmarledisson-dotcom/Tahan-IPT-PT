@@ -37,6 +37,258 @@ type Payment = {
   notes?: string;
 };
 
+type MaintenanceRequest = {
+  id: number;
+  title: string;
+  description: string;
+  photo?: string;
+  status: "pending" | "in_progress" | "resolved";
+  admin_response?: string;
+  created_at: string;
+};
+
+// ── Maintenance Tab Component ─────────────────────────────────────────────────
+function MaintenanceTab({ userId }: { userId: number }) {
+  const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
+  const [loadingReqs, setLoadingReqs] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "" });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+
+  const token = () => localStorage.getItem("token") ?? "";
+
+  useEffect(() => {
+    fetch("http://localhost:8000/api/maintenance", {
+      headers: {
+        Authorization: `Bearer ${token()}`,
+        Accept: "application/json",
+      },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setRequests(data);
+        setLoadingReqs(false);
+      })
+      .catch(() => setLoadingReqs(false));
+  }, [userId]);
+
+  const handleSubmit = async () => {
+    if (!form.title.trim() || !form.description.trim()) return;
+    setSubmitting(true);
+
+    const formData = new FormData();
+    formData.append("title", form.title);
+    formData.append("description", form.description);
+    if (photoFile) formData.append("photo", photoFile);
+
+    try {
+      const res = await fetch("http://localhost:8000/api/maintenance", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token()}`,
+          Accept: "application/json",
+        },
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRequests((prev) => [data.maintenance, ...prev]);
+        setForm({ title: "", description: "" });
+        setPhotoFile(null);
+        setPhotoPreview(null);
+        setShowForm(false);
+        setSubmitSuccess(true);
+        setTimeout(() => setSubmitSuccess(false), 3000);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const statusStyle = (status: string) => {
+    if (status === "resolved") return "bg-green-100 text-green-700";
+    if (status === "in_progress") return "bg-blue-100 text-blue-700";
+    return "bg-yellow-100 text-yellow-700";
+  };
+
+  const statusLabel = (status: string) => {
+    if (status === "in_progress") return "In Progress";
+    if (status === "resolved") return "Resolved";
+    return "Pending";
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      {submitSuccess && (
+        <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-xl">
+          ✅ Maintenance request submitted successfully!
+        </div>
+      )}
+
+      {/* Header + button */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-bold text-[#3b2314] text-lg">
+            Maintenance Requests
+          </h3>
+          <p className="text-sm text-[#9c8878]">
+            Submit and track repair requests
+          </p>
+        </div>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="px-4 py-2 bg-[#5c3d2e] text-white text-sm font-bold rounded-xl hover:bg-[#7a5240] transition"
+        >
+          {showForm ? "Cancel" : "+ New Request"}
+        </button>
+      </div>
+
+      {/* Submit form */}
+      {showForm && (
+        <div className="bg-white rounded-2xl border border-[#ede0d0] p-6 shadow-sm">
+          <h4 className="font-bold text-[#3b2314] mb-4">
+            New Maintenance Request
+          </h4>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold text-[#5c3d2e]">
+                Title
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Leaking faucet in bathroom"
+                value={form.title}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, title: e.target.value }))
+                }
+                className="px-4 py-2 rounded-xl border border-[#e8ddd0] bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold text-[#5c3d2e]">
+                Description
+              </label>
+              <textarea
+                placeholder="Describe the issue in detail…"
+                value={form.description}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, description: e.target.value }))
+                }
+                rows={4}
+                className="px-4 py-2 rounded-xl border border-[#e8ddd0] bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition text-sm resize-none"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold text-[#5c3d2e]">
+                Photo (optional)
+              </label>
+              <div
+                onClick={() => photoRef.current?.click()}
+                className="border-2 border-dashed border-[#d6c4b0] rounded-xl p-4 text-center cursor-pointer hover:border-[#5c3d2e] transition"
+              >
+                {photoPreview ? (
+                  <img
+                    src={photoPreview}
+                    alt="preview"
+                    className="max-h-40 mx-auto rounded-lg object-cover"
+                  />
+                ) : (
+                  <p className="text-sm text-[#9c8878]">
+                    📷 Click to upload a photo
+                  </p>
+                )}
+              </div>
+              <input
+                ref={photoRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setPhotoFile(file);
+                  setPhotoPreview(URL.createObjectURL(file));
+                }}
+              />
+            </div>
+            <button
+              onClick={handleSubmit}
+              disabled={
+                submitting || !form.title.trim() || !form.description.trim()
+              }
+              className="w-full py-3 bg-[#5c3d2e] text-white font-bold rounded-xl hover:bg-[#7a5240] transition text-sm disabled:opacity-50"
+            >
+              {submitting ? "Submitting…" : "Submit Request"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Requests list */}
+      {loadingReqs ? (
+        <p className="text-center text-[#9c8878] py-12 animate-pulse">
+          Loading…
+        </p>
+      ) : requests.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-[#ede0d0] p-10 text-center shadow-sm">
+          <p className="text-4xl mb-3">🔧</p>
+          <p className="font-bold text-[#3b2314]">No requests yet</p>
+          <p className="text-sm text-[#9c8878] mt-1">
+            Click "+ New Request" to submit one.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {requests.map((req) => (
+            <div
+              key={req.id}
+              className="bg-white rounded-2xl border border-[#ede0d0] p-5 shadow-sm"
+            >
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="font-bold text-[#3b2314]">{req.title}</h4>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-bold ${statusStyle(req.status)}`}
+                >
+                  {statusLabel(req.status)}
+                </span>
+              </div>
+              <p className="text-sm text-[#9c8878] mb-2">{req.description}</p>
+              {req.photo && (
+                <img
+                  src={`http://localhost:8000/storage/${req.photo}`}
+                  alt="maintenance"
+                  className="max-h-40 rounded-xl object-cover mb-2"
+                />
+              )}
+              <p className="text-xs text-[#9c8878]">
+                Submitted:{" "}
+                {new Date(req.created_at).toLocaleDateString("en-PH", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </p>
+              {req.admin_response && (
+                <div className="mt-3 bg-[#f5ede0] rounded-xl p-3">
+                  <p className="text-xs font-bold text-[#5c3d2e] mb-1">
+                    Admin Response:
+                  </p>
+                  <p className="text-sm text-[#3b2314]">{req.admin_response}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Dashboard Page ───────────────────────────────────────────────────────
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -93,7 +345,6 @@ export default function DashboardPage() {
         });
         setLoading(false);
 
-        // Fetch application status
         return fetch(`http://localhost:8000/api/tenants`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -109,7 +360,6 @@ export default function DashboardPage() {
         if (match) setApplication(match);
         setLoadingApp(false);
 
-        // Fetch payments
         const token = localStorage.getItem("token");
         return fetch("http://localhost:8000/api/payments", {
           headers: {
@@ -442,7 +692,6 @@ export default function DashboardPage() {
         {/* Payments tab */}
         {activeTab === "payments" && (
           <div className="flex flex-col gap-6">
-            {/* Summary cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white rounded-2xl border border-[#ede0d0] p-5 shadow-sm text-center">
                 <p className="text-xs text-[#9c8878] font-semibold uppercase tracking-wide mb-1">
@@ -470,12 +719,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Payment history */}
             <div className="bg-white rounded-2xl border border-[#ede0d0] shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-[#f0e6d6]">
                 <h3 className="font-bold text-[#3b2314]">Payment History</h3>
               </div>
-
               {loadingPayments ? (
                 <p className="text-center text-[#9c8878] py-12 animate-pulse">
                   Loading payments…
@@ -547,11 +794,7 @@ export default function DashboardPage() {
                         </td>
                         <td className="px-5 py-4">
                           <span
-                            className={`px-2 py-1 rounded-full text-xs font-bold ${
-                              payment.status === "paid"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-600"
-                            }`}
+                            className={`px-2 py-1 rounded-full text-xs font-bold ${payment.status === "paid" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}
                           >
                             {payment.status}
                           </span>
@@ -566,17 +809,7 @@ export default function DashboardPage() {
         )}
 
         {/* Maintenance tab */}
-        {activeTab === "maintenance" && (
-          <div className="bg-white rounded-2xl border border-[#ede0d0] p-8 shadow-sm text-center">
-            <p className="text-5xl mb-4">🔧</p>
-            <h3 className="font-bold text-[#3b2314] text-lg mb-2">
-              Maintenance Requests
-            </h3>
-            <p className="text-sm text-[#9c8878]">
-              Coming soon — you'll be able to submit repair requests here.
-            </p>
-          </div>
-        )}
+        {activeTab === "maintenance" && <MaintenanceTab userId={user.id} />}
 
         {/* Profile tab */}
         {activeTab === "profile" && (
