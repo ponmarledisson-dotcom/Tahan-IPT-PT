@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 const MOCK_MESSAGES = [
   {
@@ -69,8 +69,15 @@ const MOCK_MESSAGES = [
 ];
 
 export default function MessagesPage() {
+  const router = useRouter();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState(MOCK_MESSAGES);
+  const [backHref, setBackHref] = useState("/dashboard");
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") ?? "{}");
+    if (user.role === "admin") setBackHref("/admin/dashboard");
+  }, []);
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -94,12 +101,12 @@ export default function MessagesPage() {
     <main className="min-h-screen bg-[#fdf6ec] flex flex-col">
       {/* Header */}
       <div className="bg-white border-b border-[#ede0d0] px-6 py-4 flex items-center gap-4 sticky top-0 z-10 shadow-sm">
-        <Link
-          href="/dashboard"
+        <button
+          onClick={() => router.push(backHref)}
           className="text-[#9c8878] hover:text-[#5c3d2e] transition text-lg"
         >
           ←
-        </Link>
+        </button>
         <div className="w-10 h-10 rounded-full bg-[#3b2314] text-white flex items-center justify-center font-bold text-sm shrink-0">
           A
         </div>
@@ -126,7 +133,6 @@ export default function MessagesPage() {
             <div
               className={`flex items-end gap-2 max-w-xs lg:max-w-md ${msg.isMe ? "flex-row-reverse" : ""}`}
             >
-              {/* Avatar */}
               {!msg.isMe && (
                 <div className="w-7 h-7 rounded-full bg-[#3b2314] text-white flex items-center justify-center text-xs font-bold shrink-0 mb-1">
                   A
