@@ -15,15 +15,26 @@ type User = {
   profile_photo?: string;
 };
 
+type Application = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  room_id: number;
+  room_name?: string;
+  status: "pending" | "approved" | "rejected";
+  move_in_date?: string;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [application, setApplication] = useState<Application | null>(null);
+  const [loadingApp, setLoadingApp] = useState(true);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "profile">(
     "overview",
   );
-
-  // Profile edit state
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -48,6 +59,8 @@ export default function DashboardPage() {
       return;
     }
 
+    const storedUser = JSON.parse(stored);
+
     fetch("http://localhost:8000/api/me", {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -69,6 +82,22 @@ export default function DashboardPage() {
           emergency_contact_number: data.emergency_contact_number ?? "",
         });
         setLoading(false);
+
+        // Fetch application status using the tenant's email
+        return fetch(`http://localhost:8000/api/tenants`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        });
+      })
+      .then((res) => res?.json())
+      .then((tenants) => {
+        if (!tenants || !Array.isArray(tenants)) return;
+        const userEmail = storedUser.email;
+        const match = tenants.find((t: Application) => t.email === userEmail);
+        if (match) setApplication(match);
+        setLoadingApp(false);
       })
       .catch(() => {
         localStorage.removeItem("token");
@@ -101,7 +130,6 @@ export default function DashboardPage() {
   const handleSave = async () => {
     setSaving(true);
     const token = localStorage.getItem("token");
-
     const formData = new FormData();
     formData.append("name", form.name);
     formData.append("email", form.email);
@@ -121,9 +149,7 @@ export default function DashboardPage() {
         },
         body: formData,
       });
-
       const data = await res.json();
-
       if (res.ok) {
         setUser(data.user);
         localStorage.setItem("user", JSON.stringify(data.user));
@@ -158,13 +184,122 @@ export default function DashboardPage() {
 
   const photoUrl = getPhotoUrl();
 
+  const ApplicationStatusCard = () => {
+    if (loadingApp) {
+      return (
+        <div className="bg-white rounded-2xl border border-[#ede0d0] p-5 shadow-sm mb-6 animate-pulse">
+          <div className="h-4 bg-[#f5ede0] rounded w-1/3 mb-2" />
+          <div className="h-3 bg-[#f5ede0] rounded w-2/3" />
+        </div>
+      );
+    }
+
+    if (!application) {
+      return (
+        <div className="bg-white rounded-2xl border border-[#ede0d0] p-5 shadow-sm mb-6">
+          <div className="flex items-start gap-4">
+            <span className="text-3xl">🏠</span>
+            <div>
+              <p className="font-bold text-[#3b2314]">No Application Found</p>
+              <p className="text-sm text-[#9c8878] mt-1">
+                You haven't submitted a room application yet.{" "}
+                <a href="/" className="text-[#5c3d2e] font-bold underline">
+                  Browse rooms →
+                </a>
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const roomLabel = application.room_name ?? `Room ${application.room_id}`;
+
+    if (application.status === "pending") {
+      return (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 shadow-sm mb-6">
+          <div className="flex items-start gap-4">
+            <span className="text-3xl">⏳</span>
+            <div>
+              <p className="font-bold text-yellow-800 text-lg">
+                Application Under Review
+              </p>
+              <p className="text-sm text-yellow-700 mt-1">
+                Your application for{" "}
+                <span className="font-bold">{roomLabel}</span> is being reviewed
+                by the landlord. Please wait for approval.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (application.status === "approved") {
+      const moveIn = application.move_in_date
+        ? new Date(application.move_in_date).toLocaleDateString("en-PH", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })
+        : null;
+
+      return (
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-5 shadow-sm mb-6">
+          <div className="flex items-start gap-4">
+            <span className="text-3xl">✅</span>
+            <div>
+              <p className="font-bold text-green-800 text-lg">
+                Application Approved!
+              </p>
+              <p className="text-sm text-green-700 mt-1">
+                Welcome to TAHAN! Your room is{" "}
+                <span className="font-bold">{roomLabel}</span>.
+              </p>
+              {moveIn ? (
+                <p className="text-sm text-green-700 mt-1">
+                  📅 Move-in date: <span className="font-bold">{moveIn}</span>
+                </p>
+              ) : (
+                <p className="text-sm text-green-600 mt-1">
+                  📅 Move-in date will be set by the landlord soon.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (application.status === "rejected") {
+      return (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 shadow-sm mb-6">
+          <div className="flex items-start gap-4">
+            <span className="text-3xl">❌</span>
+            <div>
+              <p className="font-bold text-red-800 text-lg">
+                Application Not Approved
+              </p>
+              <p className="text-sm text-red-700 mt-1">
+                Your application for{" "}
+                <span className="font-bold">{roomLabel}</span> was not approved.
+                Please contact the landlord for more information.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <main className="min-h-screen bg-[#fdf6ec]">
       {/* Top nav */}
       <nav className="bg-white border-b border-[#ede0d0] px-6 py-4 flex justify-between items-center">
         <h1 className="text-xl font-black text-[#3b2314]">TAHAN</h1>
         <div className="flex items-center gap-4">
-          {/* Avatar */}
           <div className="flex items-center gap-2">
             {photoUrl ? (
               <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-[#5c3d2e]">
@@ -198,7 +333,6 @@ export default function DashboardPage() {
       </nav>
 
       <div className="max-w-4xl mx-auto px-6 py-10">
-        {/* Header */}
         <div className="mb-8">
           <h2 className="text-3xl font-black text-[#3b2314]">My Dashboard</h2>
           <p className="text-[#9c8878] text-sm mt-1">
@@ -225,61 +359,64 @@ export default function DashboardPage() {
 
         {/* Overview tab */}
         {activeTab === "overview" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              {
-                icon: "💳",
-                label: "Payments",
-                desc: "View rent payment history and due dates.",
-                soon: true,
-              },
-              {
-                icon: "💬",
-                label: "Messages",
-                desc: "Private chat with your landlord.",
-                soon: true,
-              },
-              {
-                icon: "👥",
-                label: "Group Chat",
-                desc: "Chat with all boarders and landlord.",
-                soon: true,
-              },
-              {
-                icon: "🔧",
-                label: "Maintenance",
-                desc: "Submit a repair or maintenance request.",
-                soon: true,
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="bg-white rounded-2xl border border-[#ede0d0] p-6 shadow-sm relative"
-              >
-                <div className="text-3xl mb-3">{item.icon}</div>
-                <h3 className="font-bold text-[#3b2314] mb-1">{item.label}</h3>
-                <p className="text-sm text-[#9c8878]">{item.desc}</p>
-                {item.soon && (
-                  <span className="absolute top-4 right-4 text-xs bg-[#f5ede0] text-[#9c8878] px-2 py-1 rounded-full font-semibold">
-                    Coming soon
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+          <>
+            <ApplicationStatusCard />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                {
+                  icon: "💳",
+                  label: "Payments",
+                  desc: "View rent payment history and due dates.",
+                  soon: true,
+                },
+                {
+                  icon: "💬",
+                  label: "Messages",
+                  desc: "Private chat with your landlord.",
+                  soon: true,
+                },
+                {
+                  icon: "👥",
+                  label: "Group Chat",
+                  desc: "Chat with all boarders and landlord.",
+                  soon: true,
+                },
+                {
+                  icon: "🔧",
+                  label: "Maintenance",
+                  desc: "Submit a repair or maintenance request.",
+                  soon: true,
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="bg-white rounded-2xl border border-[#ede0d0] p-6 shadow-sm relative"
+                >
+                  <div className="text-3xl mb-3">{item.icon}</div>
+                  <h3 className="font-bold text-[#3b2314] mb-1">
+                    {item.label}
+                  </h3>
+                  <p className="text-sm text-[#9c8878]">{item.desc}</p>
+                  {item.soon && (
+                    <span className="absolute top-4 right-4 text-xs bg-[#f5ede0] text-[#9c8878] px-2 py-1 rounded-full font-semibold">
+                      Coming soon
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {/* Profile tab */}
         {activeTab === "profile" && (
           <div className="bg-white rounded-2xl border border-[#ede0d0] p-8 shadow-sm">
-            {/* Success message */}
             {saveSuccess && (
               <div className="mb-6 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-xl">
                 ✅ Profile updated successfully!
               </div>
             )}
 
-            {/* Profile photo */}
             <div className="flex flex-col items-center mb-8">
               <div className="relative">
                 {photoUrl ? (
@@ -331,7 +468,6 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* View mode */}
             {!editing && (
               <>
                 <div className="flex flex-col gap-0">
@@ -374,7 +510,6 @@ export default function DashboardPage() {
               </>
             )}
 
-            {/* Edit mode */}
             {editing && (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -423,8 +558,6 @@ export default function DashboardPage() {
                       />
                     </div>
                   ))}
-
-                  {/* Gender dropdown */}
                   <div className="flex flex-col gap-1">
                     <label className="text-sm font-semibold text-[#5c3d2e]">
                       Gender
@@ -443,7 +576,6 @@ export default function DashboardPage() {
                     </select>
                   </div>
                 </div>
-
                 <div className="flex gap-3 mt-6">
                   <button
                     onClick={() => {

@@ -19,5 +19,6 @@ class Tenant extends Model
         'emergency_contact',
         'room_id',
         'status',
+        'move_in_date',
     ];
-}
+} 

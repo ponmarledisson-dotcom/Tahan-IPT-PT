@@ -49,8 +49,7 @@ export default function AdminDashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const token = () => localStorage.getItem("token") ?? "";
-  const adminName =
-    JSON.parse(localStorage.getItem("user") ?? "{}").name ?? "Admin";
+  const [adminName, setAdminName] = useState("Admin");
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -63,6 +62,7 @@ export default function AdminDashboardPage() {
       router.push("/dashboard");
       return;
     }
+    setAdminName(user.name ?? "Admin");
     fetchAll();
   }, [router]);
 
