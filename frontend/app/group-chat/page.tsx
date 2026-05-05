@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 const MEMBERS = [
   { name: "Admin", avatar: "A", color: "bg-[#3b2314]" },
@@ -121,9 +121,16 @@ const MOCK_MESSAGES = [
 const memberMap = Object.fromEntries(MEMBERS.map((m) => [m.name, m]));
 
 export default function GroupChatPage() {
+  const router = useRouter();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState(MOCK_MESSAGES);
   const [showMembers, setShowMembers] = useState(false);
+  const [backHref, setBackHref] = useState("/dashboard");
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") ?? "{}");
+    if (user.role === "admin") setBackHref("/admin/dashboard");
+  }, []);
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -147,12 +154,12 @@ export default function GroupChatPage() {
     <main className="min-h-screen bg-[#fdf6ec] flex flex-col">
       {/* Header */}
       <div className="bg-white border-b border-[#ede0d0] px-6 py-4 flex items-center gap-4 sticky top-0 z-10 shadow-sm">
-        <Link
-          href="/dashboard"
+        <button
+          onClick={() => router.push(backHref)}
           className="text-[#9c8878] hover:text-[#5c3d2e] transition text-lg"
         >
           ←
-        </Link>
+        </button>
 
         {/* Stacked avatars */}
         <div className="flex -space-x-2">
@@ -227,7 +234,6 @@ export default function GroupChatPage() {
               <div
                 className={`flex items-end gap-2 max-w-xs lg:max-w-md ${msg.isMe ? "flex-row-reverse" : ""}`}
               >
-                {/* Avatar */}
                 {!msg.isMe && member && (
                   <div
                     className={`w-7 h-7 rounded-full ${member.color} text-white flex items-center justify-center text-xs font-bold shrink-0 mb-1`}
@@ -236,7 +242,6 @@ export default function GroupChatPage() {
                   </div>
                 )}
                 <div>
-                  {/* Sender name for others */}
                   {!msg.isMe && (
                     <p className="text-xs font-bold text-[#9c8878] mb-1 ml-1">
                       {msg.sender}
