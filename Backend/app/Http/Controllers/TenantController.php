@@ -32,31 +32,28 @@ class TenantController extends Controller
         ], 201);
     }
 
-    // GET /api/tenants - get all tenants (admin)
+    // GET /api/tenants
     public function index()
     {
-        $tenants = Tenant::all();
-        return response()->json($tenants);
+        return response()->json(Tenant::all());
     }
 
-    // GET /api/tenants/{id} - get one tenant
+    // GET /api/tenants/{id}
     public function show($id)
     {
-        $tenant = Tenant::findOrFail($id);
-        return response()->json($tenant);
+        return response()->json(Tenant::findOrFail($id));
     }
 
-    // GET /api/profile - returns logged-in user's profile
+    // GET /api/profile
     public function profile(Request $request)
     {
         return response()->json($request->user());
     }
 
-    // POST /api/profile/update - tenant updates their own profile
+    // POST /api/profile/update
     public function updateProfile(Request $request)
     {
         $user = $request->user();
-
         $request->validate([
             'name'                     => 'required|string|max:255',
             'email'                    => 'required|email|unique:users,email,' . $user->id,
@@ -65,23 +62,14 @@ class TenantController extends Controller
             'emergency_contact_name'   => 'required|string|max:255',
             'emergency_contact_number' => 'required|string|max:20',
         ]);
-
         $user->update($request->only([
-            'name',
-            'email',
-            'gender',
-            'contact_number',
-            'emergency_contact_name',
-            'emergency_contact_number',
+            'name', 'email', 'gender',
+            'contact_number', 'emergency_contact_name', 'emergency_contact_number',
         ]));
-
-        return response()->json([
-            'message' => 'Profile updated successfully.',
-            'user'    => $user,
-        ]);
+        return response()->json(['message' => 'Profile updated successfully.', 'user' => $user]);
     }
 
-    // GET /api/dashboard - tenant dashboard data
+    // GET /api/dashboard
     public function dashboard(Request $request)
     {
         $user = $request->user();
@@ -90,4 +78,35 @@ class TenantController extends Controller
             'message' => 'Welcome to your dashboard, ' . $user->name . '!',
         ]);
     }
-}
+
+    // GET /api/my-application ← ADDED: tenant sees their own application status
+    public function myApplication(Request $request)
+    {
+        $user   = $request->user();
+        $tenant = Tenant::where('email', $user->email)->latest()->first();
+
+        if (!$tenant) {
+            return response()->json(null);
+        }
+
+        // Use room name map since your rooms are in the DB
+        $roomNames = [
+            1 => 'Room 101', 2 => 'Room 102', 3 => 'Room 103',
+            4 => 'Room 201', 5 => 'Room 202', 6 => 'Room 301',
+            7 => 'Room 302', 8 => 'Room 303', 9 => 'Room 304',
+        ];
+
+        return response()->json([
+            'id'           => $tenant->id,
+            'first_name'   => $tenant->first_name,
+            'last_name'    => $tenant->last_name,
+            'room_id'      => $tenant->room_id,
+            'status'       => $tenant->status,
+            'move_in_date' => $tenant->move_in_date,
+            'room'         => [
+                'name' => $roomNames[$tenant->room_id] ?? 'Room ' . $tenant->room_id,
+                'type' => null,
+            ],
+        ]);
+    }
+} 

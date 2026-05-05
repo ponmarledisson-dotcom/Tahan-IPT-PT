@@ -5,6 +5,7 @@ use App\Http\Controllers\RoomController;
 use App\Http\Controllers\TenantController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\PaymentController;
 
 // ── Rooms (public) ────────────────────────────────────────────────────────────
 Route::get('/rooms',      [RoomController::class, 'index']);
@@ -33,6 +34,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Dashboard
     Route::get('/dashboard', [TenantController::class, 'dashboard']);
 
+    // ← ADDED: tenant application status for dashboard
+    Route::get('/my-application', [TenantController::class, 'myApplication']);
+
+    // Payments (tenant)
+    Route::get('/payments', [PaymentController::class, 'index']);
+
     // Admin only
     Route::middleware('admin')->group(function () {
 
@@ -42,6 +49,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/admin/tenants/{id}',              [AdminController::class, 'updateTenant']);
         Route::patch('/admin/tenants/{id}/deactivate', [AdminController::class, 'deactivate']);
         Route::patch('/admin/tenants/{id}/activate',   [AdminController::class, 'activate']);
+
+        // Payments (admin)
+        Route::get('/admin/payments',                    [PaymentController::class, 'adminIndex']);
+        Route::post('/admin/payments',                   [PaymentController::class, 'store']);
+        Route::patch('/admin/payments/{id}/mark-paid',   [PaymentController::class, 'markPaid']);
+        Route::patch('/admin/payments/{id}/mark-unpaid', [PaymentController::class, 'markUnpaid']);
 
         // Applications
         Route::get('/admin/applications',                [AdminController::class, 'allApplications']);

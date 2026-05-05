@@ -21,4 +21,10 @@ class Tenant extends Model
         'status',
         'move_in_date',
     ];
-} 
+
+    // ← ADDED: relationship to Room model
+    public function room()
+    {
+        return $this->belongsTo(Room::class);
+    }
+}

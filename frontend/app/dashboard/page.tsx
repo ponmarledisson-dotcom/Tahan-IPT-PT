@@ -26,15 +26,28 @@ type Application = {
   move_in_date?: string;
 };
 
+type Payment = {
+  id: number;
+  month: string;
+  amount: number;
+  status: "paid" | "unpaid";
+  due_date: string;
+  paid_date?: string;
+  payment_method?: string;
+  notes?: string;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [application, setApplication] = useState<Application | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loadingApp, setLoadingApp] = useState(true);
+  const [loadingPayments, setLoadingPayments] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "profile">(
-    "overview",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "payments" | "maintenance" | "profile"
+  >("overview");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -62,10 +75,7 @@ export default function DashboardPage() {
     const storedUser = JSON.parse(stored);
 
     fetch("http://localhost:8000/api/me", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     })
       .then((res) => {
         if (!res.ok) throw new Error("Unauthorized");
@@ -83,7 +93,7 @@ export default function DashboardPage() {
         });
         setLoading(false);
 
-        // Fetch application status using the tenant's email
+        // Fetch application status
         return fetch(`http://localhost:8000/api/tenants`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -98,6 +108,20 @@ export default function DashboardPage() {
         const match = tenants.find((t: Application) => t.email === userEmail);
         if (match) setApplication(match);
         setLoadingApp(false);
+
+        // Fetch payments
+        const token = localStorage.getItem("token");
+        return fetch("http://localhost:8000/api/payments", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        });
+      })
+      .then((res) => res?.json())
+      .then((data) => {
+        if (Array.isArray(data)) setPayments(data);
+        setLoadingPayments(false);
       })
       .catch(() => {
         localStorage.removeItem("token");
@@ -110,10 +134,7 @@ export default function DashboardPage() {
     const token = localStorage.getItem("token");
     await fetch("http://localhost:8000/api/logout", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -227,7 +248,7 @@ export default function DashboardPage() {
               <p className="text-sm text-yellow-700 mt-1">
                 Your application for{" "}
                 <span className="font-bold">{roomLabel}</span> is being reviewed
-                by the landlord. Please wait for approval.
+                by the landlord.
               </p>
             </div>
           </div>
@@ -243,7 +264,6 @@ export default function DashboardPage() {
             year: "numeric",
           })
         : null;
-
       return (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-5 shadow-sm mb-6">
           <div className="flex items-start gap-4">
@@ -283,16 +303,22 @@ export default function DashboardPage() {
               <p className="text-sm text-red-700 mt-1">
                 Your application for{" "}
                 <span className="font-bold">{roomLabel}</span> was not approved.
-                Please contact the landlord for more information.
+                Please contact the landlord.
               </p>
             </div>
           </div>
         </div>
       );
     }
-
     return null;
   };
+
+  const totalPaid = payments
+    .filter((p) => p.status === "paid")
+    .reduce((sum, p) => sum + p.amount, 0);
+  const totalUnpaid = payments
+    .filter((p) => p.status === "unpaid")
+    .reduce((sum, p) => sum + p.amount, 0);
 
   return (
     <main className="min-h-screen bg-[#fdf6ec]">
@@ -341,20 +367,22 @@ export default function DashboardPage() {
         </div>
 
         {/* Tab nav */}
-        <div className="flex gap-2 mb-8 border-b border-[#ede0d0]">
-          {(["overview", "profile"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2 text-sm font-bold capitalize transition border-b-2 -mb-px ${
-                activeTab === tab
-                  ? "border-[#5c3d2e] text-[#5c3d2e]"
-                  : "border-transparent text-[#9c8878] hover:text-[#5c3d2e]"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        <div className="flex gap-2 mb-8 border-b border-[#ede0d0] overflow-x-auto">
+          {(["overview", "payments", "maintenance", "profile"] as const).map(
+            (tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-5 py-2 text-sm font-bold capitalize transition border-b-2 -mb-px whitespace-nowrap ${
+                  activeTab === tab
+                    ? "border-[#5c3d2e] text-[#5c3d2e]"
+                    : "border-transparent text-[#9c8878] hover:text-[#5c3d2e]"
+                }`}
+              >
+                {tab}
+              </button>
+            ),
+          )}
         </div>
 
         {/* Overview tab */}
@@ -367,37 +395,40 @@ export default function DashboardPage() {
                   icon: "💳",
                   label: "Payments",
                   desc: "View rent payment history and due dates.",
-                  soon: true,
+                  tab: "payments",
                 },
                 {
                   icon: "💬",
                   label: "Messages",
                   desc: "Private chat with your landlord.",
-                  soon: true,
+                  tab: null,
                 },
                 {
                   icon: "👥",
                   label: "Group Chat",
                   desc: "Chat with all boarders and landlord.",
-                  soon: true,
+                  tab: null,
                 },
                 {
                   icon: "🔧",
                   label: "Maintenance",
                   desc: "Submit a repair or maintenance request.",
-                  soon: true,
+                  tab: "maintenance",
                 },
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="bg-white rounded-2xl border border-[#ede0d0] p-6 shadow-sm relative"
+                  onClick={() =>
+                    item.tab && setActiveTab(item.tab as typeof activeTab)
+                  }
+                  className={`bg-white rounded-2xl border border-[#ede0d0] p-6 shadow-sm relative ${item.tab ? "cursor-pointer hover:border-[#5c3d2e] hover:shadow-md transition" : ""}`}
                 >
                   <div className="text-3xl mb-3">{item.icon}</div>
                   <h3 className="font-bold text-[#3b2314] mb-1">
                     {item.label}
                   </h3>
                   <p className="text-sm text-[#9c8878]">{item.desc}</p>
-                  {item.soon && (
+                  {!item.tab && (
                     <span className="absolute top-4 right-4 text-xs bg-[#f5ede0] text-[#9c8878] px-2 py-1 rounded-full font-semibold">
                       Coming soon
                     </span>
@@ -408,6 +439,145 @@ export default function DashboardPage() {
           </>
         )}
 
+        {/* Payments tab */}
+        {activeTab === "payments" && (
+          <div className="flex flex-col gap-6">
+            {/* Summary cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white rounded-2xl border border-[#ede0d0] p-5 shadow-sm text-center">
+                <p className="text-xs text-[#9c8878] font-semibold uppercase tracking-wide mb-1">
+                  Total Payments
+                </p>
+                <p className="text-3xl font-black text-[#3b2314]">
+                  {payments.length}
+                </p>
+              </div>
+              <div className="bg-green-50 rounded-2xl border border-green-200 p-5 shadow-sm text-center">
+                <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-1">
+                  Total Paid
+                </p>
+                <p className="text-3xl font-black text-green-700">
+                  ₱{totalPaid.toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-red-50 rounded-2xl border border-red-200 p-5 shadow-sm text-center">
+                <p className="text-xs text-red-600 font-semibold uppercase tracking-wide mb-1">
+                  Outstanding
+                </p>
+                <p className="text-3xl font-black text-red-600">
+                  ₱{totalUnpaid.toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            {/* Payment history */}
+            <div className="bg-white rounded-2xl border border-[#ede0d0] shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-[#f0e6d6]">
+                <h3 className="font-bold text-[#3b2314]">Payment History</h3>
+              </div>
+
+              {loadingPayments ? (
+                <p className="text-center text-[#9c8878] py-12 animate-pulse">
+                  Loading payments…
+                </p>
+              ) : payments.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-4xl mb-3">💳</p>
+                  <p className="font-bold text-[#3b2314]">
+                    No payment records yet
+                  </p>
+                  <p className="text-sm text-[#9c8878] mt-1">
+                    Your payment history will appear here once the landlord adds
+                    records.
+                  </p>
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-[#fdf6ec] border-b border-[#ede0d0]">
+                    <tr>
+                      {[
+                        "Month",
+                        "Amount",
+                        "Due Date",
+                        "Paid Date",
+                        "Method",
+                        "Status",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className="px-5 py-3 text-left text-xs font-bold text-[#9c8878] uppercase tracking-wide"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((payment, i) => (
+                      <tr
+                        key={payment.id}
+                        className={`border-b border-[#f5ede0] last:border-0 ${i % 2 === 0 ? "bg-white" : "bg-[#fffaf4]"}`}
+                      >
+                        <td className="px-5 py-4 font-semibold text-[#3b2314]">
+                          {payment.month}
+                        </td>
+                        <td className="px-5 py-4 text-[#3b2314] font-bold">
+                          ₱{Number(payment.amount).toLocaleString()}
+                        </td>
+                        <td className="px-5 py-4 text-[#9c8878]">
+                          {new Date(payment.due_date).toLocaleDateString(
+                            "en-PH",
+                            { month: "short", day: "numeric", year: "numeric" },
+                          )}
+                        </td>
+                        <td className="px-5 py-4 text-[#9c8878]">
+                          {payment.paid_date
+                            ? new Date(payment.paid_date).toLocaleDateString(
+                                "en-PH",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                },
+                              )
+                            : "—"}
+                        </td>
+                        <td className="px-5 py-4 text-[#9c8878]">
+                          {payment.payment_method ?? "—"}
+                        </td>
+                        <td className="px-5 py-4">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-bold ${
+                              payment.status === "paid"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-red-100 text-red-600"
+                            }`}
+                          >
+                            {payment.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Maintenance tab */}
+        {activeTab === "maintenance" && (
+          <div className="bg-white rounded-2xl border border-[#ede0d0] p-8 shadow-sm text-center">
+            <p className="text-5xl mb-4">🔧</p>
+            <h3 className="font-bold text-[#3b2314] text-lg mb-2">
+              Maintenance Requests
+            </h3>
+            <p className="text-sm text-[#9c8878]">
+              Coming soon — you'll be able to submit repair requests here.
+            </p>
+          </div>
+        )}
+
         {/* Profile tab */}
         {activeTab === "profile" && (
           <div className="bg-white rounded-2xl border border-[#ede0d0] p-8 shadow-sm">
@@ -416,7 +586,6 @@ export default function DashboardPage() {
                 ✅ Profile updated successfully!
               </div>
             )}
-
             <div className="flex flex-col items-center mb-8">
               <div className="relative">
                 {photoUrl ? (
