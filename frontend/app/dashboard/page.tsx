@@ -652,12 +652,14 @@ export default function DashboardPage() {
                   label: "Messages",
                   desc: "Private chat with your landlord.",
                   tab: null,
+                  href: "/messages",
                 },
                 {
                   icon: "👥",
                   label: "Group Chat",
                   desc: "Chat with all boarders and landlord.",
                   tab: null,
+                  href: "/group-chat",
                 },
                 {
                   icon: "🔧",
@@ -668,17 +670,19 @@ export default function DashboardPage() {
               ].map((item) => (
                 <div
                   key={item.label}
-                  onClick={() =>
-                    item.tab && setActiveTab(item.tab as typeof activeTab)
-                  }
-                  className={`bg-white rounded-2xl border border-[#ede0d0] p-6 shadow-sm relative ${item.tab ? "cursor-pointer hover:border-[#5c3d2e] hover:shadow-md transition" : ""}`}
+                  onClick={() => {
+                    if (item.href) router.push(item.href);
+                    else if (item.tab)
+                      setActiveTab(item.tab as typeof activeTab);
+                  }}
+                  className={`bg-white rounded-2xl border border-[#ede0d0] p-6 shadow-sm relative cursor-pointer hover:border-[#5c3d2e] hover:shadow-md transition`}
                 >
                   <div className="text-3xl mb-3">{item.icon}</div>
                   <h3 className="font-bold text-[#3b2314] mb-1">
                     {item.label}
                   </h3>
                   <p className="text-sm text-[#9c8878]">{item.desc}</p>
-                  {!item.tab && (
+                  {!item.tab && !item.href && (
                     <span className="absolute top-4 right-4 text-xs bg-[#f5ede0] text-[#9c8878] px-2 py-1 rounded-full font-semibold">
                       Coming soon
                     </span>

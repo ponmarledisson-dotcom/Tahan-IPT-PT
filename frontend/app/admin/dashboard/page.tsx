@@ -458,6 +458,20 @@ export default function AdminDashboardPage() {
       label: "Maintenance",
       badge: stats.pendingMaintenance,
     },
+    {
+      key: "messages",
+      icon: "💬",
+      label: "Messages",
+      badge: 0,
+      href: "/messages",
+    },
+    {
+      key: "group-chat",
+      icon: "👥",
+      label: "Group Chat",
+      badge: 0,
+      href: "/group-chat",
+    },
   ];
 
   return (
@@ -495,7 +509,10 @@ export default function AdminDashboardPage() {
           {navItems.map((item) => (
             <button
               key={item.key}
-              onClick={() => setActiveTab(item.key as typeof activeTab)}
+              onClick={() => {
+                if (item.href) router.push(item.href);
+                else setActiveTab(item.key as typeof activeTab);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold transition relative ${
                 activeTab === item.key
                   ? "bg-[#5c3d2e] text-white"
