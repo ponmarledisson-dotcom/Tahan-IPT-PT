@@ -8,6 +8,19 @@ use Illuminate\Http\Request;
 
 class TenantController extends Controller
 {
+    // Room name map — matches seeded room IDs
+    private array $roomNames = [
+        1 => 'Room 101',
+        2 => 'Room 103',
+        3 => 'Room 201',
+        4 => 'Room 203',
+        5 => 'Room 301',
+        6 => 'Room 303',
+        7 => 'Room 102',
+        8 => 'Room 202',
+        9 => 'Room 302',
+    ];
+
     // POST /api/tenants - save new tenant application
     public function store(Request $request)
     {
@@ -25,23 +38,32 @@ class TenantController extends Controller
             'room_id'           => 'nullable|integer',
         ]);
 
-        // No room selected — skip tenant record creation entirely
+        // No room selected — skip tenant record creation
         if (empty($validated['room_id'])) {
             return response()->json([
                 'message' => 'No room selected. Account will be created only.',
             ], 200);
         }
 
-        // Room/gender check
+        // Find the room
         $room = Room::find($validated['room_id']);
 
         if (!$room) {
             return response()->json(['message' => 'Room not found.'], 404);
         }
 
-        if ($room->gender !== 'Mixed' && $room->gender !== $validated['sex']) {
+        // ── Gender compatibility check ────────────────────────────────────
+        if ($room->gender_type === 'Male Only' && $validated['sex'] !== 'Male') {
             return response()->json([
-                'message' => 'This room is for ' . $room->gender . ' tenants only.',
+                'message' => 'This room is for male tenants only.',
+                'errors'  => ['room_id' => ['This room is Boys Only. Female applicants are not allowed.']],
+            ], 422);
+        }
+
+        if ($room->gender_type === 'Female Only' && $validated['sex'] !== 'Female') {
+            return response()->json([
+                'message' => 'This room is for female tenants only.',
+                'errors'  => ['room_id' => ['This room is Girls Only. Male applicants are not allowed.']],
             ], 422);
         }
 
@@ -53,27 +75,25 @@ class TenantController extends Controller
         ], 201);
     }
 
-    // GET /api/tenants - get all tenants (admin)
+    // GET /api/tenants
     public function index()
     {
-        $tenants = Tenant::all();
-        return response()->json($tenants);
+        return response()->json(Tenant::all());
     }
 
-    // GET /api/tenants/{id} - get one tenant
+    // GET /api/tenants/{id}
     public function show($id)
     {
-        $tenant = Tenant::findOrFail($id);
-        return response()->json($tenant);
+        return response()->json(Tenant::findOrFail($id));
     }
 
-    // GET /api/profile - returns logged-in user's profile
+    // GET /api/profile
     public function profile(Request $request)
     {
         return response()->json($request->user());
     }
 
-    // POST /api/profile/update - tenant updates their own profile
+    // POST /api/profile/update
     public function updateProfile(Request $request)
     {
         $user = $request->user();
@@ -92,8 +112,7 @@ class TenantController extends Controller
             if ($user->profile_photo && file_exists(public_path('uploads/' . $user->profile_photo))) {
                 unlink(public_path('uploads/' . $user->profile_photo));
             }
-
-            $file = $request->file('profile_photo');
+            $file     = $request->file('profile_photo');
             $filename = time() . '_' . $user->id . '.' . $file->getClientOriginalExtension();
             $file->move(public_path('uploads'), $filename);
             $user->profile_photo = $filename;
@@ -115,7 +134,7 @@ class TenantController extends Controller
         ]);
     }
 
-    // GET /api/dashboard - tenant dashboard data
+    // GET /api/dashboard
     public function dashboard(Request $request)
     {
         $user = $request->user();
@@ -124,58 +143,94 @@ class TenantController extends Controller
             'message' => 'Welcome to your dashboard, ' . $user->name . '!',
         ]);
     }
-    // POST /api/apply-room - logged-in tenant applies for a room
-public function applyRoom(Request $request)
-{
-    $user = $request->user();
 
-    $validated = $request->validate([
-        'room_id' => 'required|integer|exists:rooms,id',
-    ]);
+    // GET /api/my-application — tenant sees their own application status
+    public function myApplication(Request $request)
+    {
+        $user   = $request->user();
+        $tenant = Tenant::where('email', $user->email)->latest()->first();
 
-    // Check if already has a pending/approved application
-    $existing = Tenant::where('email', $user->email)
-        ->whereIn('status', ['pending', 'approved'])
-        ->first();
+        if (!$tenant) {
+            return response()->json(null);
+        }
 
-    if ($existing) {
+        $roomName = $this->roomNames[$tenant->room_id]
+            ?? ($tenant->room_id ? 'Room ' . $tenant->room_id : 'Unknown Room');
+
         return response()->json([
-            'message' => 'You already have an active application.',
-        ], 422);
+            'id'           => $tenant->id,
+            'first_name'   => $tenant->first_name,
+            'last_name'    => $tenant->last_name,
+            'room_id'      => $tenant->room_id,
+            'status'       => $tenant->status,
+            'move_in_date' => $tenant->move_in_date,
+            'room'         => [
+                'name' => $roomName,
+                'type' => $tenant->room_id ? (Room::find($tenant->room_id)?->type ?? '') : '',
+            ],
+        ]);
     }
 
-    // Room gender check
-    $room = Room::find($validated['room_id']);
-    $userGender = $user->gender ?? 'Mixed';
+    // POST /api/apply-room — logged-in tenant applies for a room
+    public function applyRoom(Request $request)
+    {
+        $user = $request->user();
 
-    if ($room->gender_type !== 'Mixed' && $room->gender_type !== $userGender) {
+        $validated = $request->validate([
+            'room_id' => 'required|integer|exists:rooms,id',
+        ]);
+
+        // Check if already has a pending/approved application
+        $existing = Tenant::where('email', $user->email)
+            ->whereIn('status', ['pending', 'approved'])
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'message' => 'You already have an active application.',
+            ], 422);
+        }
+
+        // Room gender check
+        $room       = Room::find($validated['room_id']);
+        $userGender = $user->gender ?? 'Mixed';
+
+        if ($room->gender_type === 'Male Only' && $userGender !== 'Male') {
+            return response()->json([
+                'message' => 'This room is Boys Only. Female applicants are not allowed.',
+                'errors'  => ['room_id' => ['This room is for male tenants only.']],
+            ], 422);
+        }
+
+        if ($room->gender_type === 'Female Only' && $userGender !== 'Female') {
+            return response()->json([
+                'message' => 'This room is Girls Only. Male applicants are not allowed.',
+                'errors'  => ['room_id' => ['This room is for female tenants only.']],
+            ], 422);
+        }
+
+        $nameParts = explode(' ', $user->name, 2);
+        $firstName = $nameParts[0];
+        $lastName  = $nameParts[1] ?? '-';
+
+        $tenant = Tenant::create([
+            'first_name'        => $firstName,
+            'last_name'         => $lastName,
+            'sex'               => $user->gender ?? 'Male',
+            'birthdate'         => '2000-01-01',
+            'age'               => 20,
+            'contact'           => $user->contact_number ?? '-',
+            'email'             => $user->email,
+            'address'           => '-',
+            'emergency_name'    => $user->emergency_contact_name ?? '-',
+            'emergency_contact' => $user->emergency_contact_number ?? '-',
+            'room_id'           => $validated['room_id'],
+            'status'            => 'pending',
+        ]);
+
         return response()->json([
-            'message' => 'This room is for ' . $room->gender_type . ' tenants only.',
-        ], 422);
+            'message' => 'Application submitted successfully!',
+            'tenant'  => $tenant,
+        ], 201);
     }
-
-    $nameParts = explode(' ', $user->name, 2);
-    $firstName = $nameParts[0];
-    $lastName  = $nameParts[1] ?? '-';
-
-    $tenant = Tenant::create([
-        'first_name'        => $firstName,
-        'last_name'         => $lastName,
-        'sex'               => $user->gender ?? 'Male',
-        'birthdate'         => '2000-01-01',
-        'age'               => 20,
-        'contact'           => $user->contact_number ?? '-',
-        'email'             => $user->email,
-        'address'           => '-',
-        'emergency_name'    => $user->emergency_contact_name ?? '-',
-        'emergency_contact' => $user->emergency_contact_number ?? '-',
-        'room_id'           => $validated['room_id'],
-        'status'            => 'pending',
-    ]);
-
-    return response()->json([
-        'message' => 'Application submitted successfully!',
-        'tenant'  => $tenant,
-    ], 201);
-}
 }

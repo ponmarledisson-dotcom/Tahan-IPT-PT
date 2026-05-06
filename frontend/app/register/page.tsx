@@ -100,7 +100,7 @@ function RegisterForm() {
 
   // ── Change handler ──────────────────────────────────────────────────────────
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
 
@@ -130,7 +130,8 @@ function RegisterForm() {
     } else if (form.firstName.trim().length < 2) {
       e.firstName = "First name must be at least 2 characters.";
     } else if (!nameRegex.test(form.firstName)) {
-      e.firstName = "First name must not contain numbers or special characters.";
+      e.firstName =
+        "First name must not contain numbers or special characters.";
     }
 
     if (!form.lastName.trim()) {
@@ -192,7 +193,8 @@ function RegisterForm() {
     if (!form.emergencyContact.trim()) {
       e.emergencyContact = "Emergency contact number is required.";
     } else if (!contactRegex.test(form.emergencyContact.trim())) {
-      e.emergencyContact = "Enter a valid PH number: 09XXXXXXXXX or +639XXXXXXXXX.";
+      e.emergencyContact =
+        "Enter a valid PH number: 09XXXXXXXXX or +639XXXXXXXXX.";
     }
 
     // Password — min 8 chars, at least 1 uppercase, at least 1 number
@@ -327,7 +329,6 @@ function RegisterForm() {
   return (
     <main className="min-h-screen py-10 px-6">
       <div className="max-w-3xl mx-auto flex flex-col gap-6">
-
         {/* Header */}
         <div>
           <Link
@@ -348,6 +349,12 @@ function RegisterForm() {
         {errors.general && (
           <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
             {errors.general}
+          </div>
+        )}
+        {/* Room gender error ← ADD THIS */}
+        {errors.room_id && (
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
+            ⚠️ {errors.room_id}
           </div>
         )}
 
@@ -378,7 +385,7 @@ function RegisterForm() {
                   />
                 )}
               </div>
-            )
+            ),
           )}
         </div>
 
@@ -488,7 +495,6 @@ function RegisterForm() {
             Personal Information
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
             {/* First Name — block digits */}
             <Field
               label="First Name"
@@ -513,7 +519,9 @@ function RegisterForm() {
 
             {/* Sex */}
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-semibold text-[#5c3d2e]">Sex</label>
+              <label className="text-sm font-semibold text-[#5c3d2e]">
+                Sex
+              </label>
               <select
                 name="sex"
                 value={form.sex}
@@ -540,11 +548,13 @@ function RegisterForm() {
                 name="birthdate"
                 value={form.birthdate}
                 onChange={handleChange}
-                max={new Date(
-                  new Date().setFullYear(new Date().getFullYear() - 15)
-                )
-                  .toISOString()
-                  .split("T")[0]}
+                max={
+                  new Date(
+                    new Date().setFullYear(new Date().getFullYear() - 15),
+                  )
+                    .toISOString()
+                    .split("T")[0]
+                }
                 className={`px-4 py-2 rounded-xl border bg-white text-[#3b2314] focus:outline-none focus:ring-2 focus:ring-[#5c3d2e] transition
                   ${errors.birthdate ? "border-red-400 bg-red-50" : "border-[#e8ddd0]"}`}
               />
@@ -579,7 +589,13 @@ function RegisterForm() {
               onKeyDown={(e) => {
                 // Allow: digits, +, Backspace, Delete, Tab, Arrow keys
                 const allowed = [
-                  "Backspace", "Delete", "Tab", "ArrowLeft", "ArrowRight", "Home", "End",
+                  "Backspace",
+                  "Delete",
+                  "Tab",
+                  "ArrowLeft",
+                  "ArrowRight",
+                  "Home",
+                  "End",
                 ];
                 if (!allowed.includes(e.key) && !/^[0-9+]$/.test(e.key)) {
                   e.preventDefault();
@@ -620,7 +636,13 @@ function RegisterForm() {
               onChange={handleChange}
               onKeyDown={(e) => {
                 const allowed = [
-                  "Backspace", "Delete", "Tab", "ArrowLeft", "ArrowRight", "Home", "End",
+                  "Backspace",
+                  "Delete",
+                  "Tab",
+                  "ArrowLeft",
+                  "ArrowRight",
+                  "Home",
+                  "End",
                 ];
                 if (!allowed.includes(e.key) && !/^[0-9+]$/.test(e.key)) {
                   e.preventDefault();
