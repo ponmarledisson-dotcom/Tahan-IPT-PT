@@ -37,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Tenant application status
     Route::get('/my-application', [TenantController::class, 'myApplication']);
+    Route::post('/apply-room', [TenantController::class, 'applyRoom']);
 
     // Payments (tenant)
     Route::get('/payments', [PaymentController::class, 'index']);

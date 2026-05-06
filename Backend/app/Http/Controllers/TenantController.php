@@ -124,4 +124,58 @@ class TenantController extends Controller
             'message' => 'Welcome to your dashboard, ' . $user->name . '!',
         ]);
     }
+    // POST /api/apply-room - logged-in tenant applies for a room
+public function applyRoom(Request $request)
+{
+    $user = $request->user();
+
+    $validated = $request->validate([
+        'room_id' => 'required|integer|exists:rooms,id',
+    ]);
+
+    // Check if already has a pending/approved application
+    $existing = Tenant::where('email', $user->email)
+        ->whereIn('status', ['pending', 'approved'])
+        ->first();
+
+    if ($existing) {
+        return response()->json([
+            'message' => 'You already have an active application.',
+        ], 422);
+    }
+
+    // Room gender check
+    $room = Room::find($validated['room_id']);
+    $userGender = $user->gender ?? 'Mixed';
+
+    if ($room->gender_type !== 'Mixed' && $room->gender_type !== $userGender) {
+        return response()->json([
+            'message' => 'This room is for ' . $room->gender_type . ' tenants only.',
+        ], 422);
+    }
+
+    $nameParts = explode(' ', $user->name, 2);
+    $firstName = $nameParts[0];
+    $lastName  = $nameParts[1] ?? '-';
+
+    $tenant = Tenant::create([
+        'first_name'        => $firstName,
+        'last_name'         => $lastName,
+        'sex'               => $user->gender ?? 'Male',
+        'birthdate'         => '2000-01-01',
+        'age'               => 20,
+        'contact'           => $user->contact_number ?? '-',
+        'email'             => $user->email,
+        'address'           => '-',
+        'emergency_name'    => $user->emergency_contact_name ?? '-',
+        'emergency_contact' => $user->emergency_contact_number ?? '-',
+        'room_id'           => $validated['room_id'],
+        'status'            => 'pending',
+    ]);
+
+    return response()->json([
+        'message' => 'Application submitted successfully!',
+        'tenant'  => $tenant,
+    ], 201);
+}
 }

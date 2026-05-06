@@ -1,10 +1,12 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function RoomDetailsClient({ roomId }: { roomId: string }) {
   const params = useSearchParams();
+  const router = useRouter();
 
   const name = params.get("name") || "Room";
   const type = params.get("type") || "Private";
@@ -16,11 +18,71 @@ export default function RoomDetailsClient({ roomId }: { roomId: string }) {
   const description = params.get("description") || "";
   const image = params.get("image") || "/room1.jpg";
 
+  const [user, setUser] = useState<any>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("user");
+    if (stored) setUser(JSON.parse(stored));
+  }, []);
+
+  const handleGetRoom = () => {
+    if (!user) {
+      // Not logged in — go to register
+      router.push(
+        `/register?id=${roomId}&name=${name}&type=${type}&price=${price}`,
+      );
+    } else {
+      // Logged in — show confirmation popup
+      setShowConfirm(true);
+    }
+  };
+
+  const handleConfirm = async () => {
+    setSubmitting(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:8000/api/apply-room", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          room_id: parseInt(roomId),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setShowConfirm(false);
+        router.push("/dashboard");
+      } else {
+        setError(data.message ?? "Something went wrong. Please try again.");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <main className="min-h-screen">
       {/* Hero Image */}
       <div className="relative w-full h-96">
-        <Image src={image} alt={name} fill className="object-cover" />
+        <Image
+          src={image}
+          alt={name}
+          fill
+          className="object-cover"
+          unoptimized
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
         <Link
@@ -107,7 +169,7 @@ export default function RoomDetailsClient({ roomId }: { roomId: string }) {
                 "No loud music after 9PM",
               ].map((rule, i) => (
                 <div key={i} className="flex items-center gap-2 text-[#5c3d2e]">
-                  <span className="text-red-400">x</span>
+                  <span className="text-red-400">✕</span>
                   {rule}
                 </div>
               ))}
@@ -131,7 +193,7 @@ export default function RoomDetailsClient({ roomId }: { roomId: string }) {
           </div>
         </div>
 
-        {/* Right Column - Receipt */}
+        {/* Right Column */}
         <div className="flex flex-col gap-4">
           <div className="bg-[#fffaf4] rounded-2xl p-6 shadow-sm sticky top-6">
             <h2 className="text-xl font-bold text-[#3b2314] mb-4">
@@ -167,24 +229,87 @@ export default function RoomDetailsClient({ roomId }: { roomId: string }) {
                 </span>
               </div>
               <div className="border-t border-[#e8ddd0] pt-3 flex justify-between text-[#3b2314] font-bold">
-                <span>Downpayment</span>
+                <span>Downpayment (50%)</span>
                 <span>P{(parseInt(price) / 2).toLocaleString()}</span>
               </div>
             </div>
 
-            <a
-              href={`/register?id=${roomId}&name=${name}&type=${type}&price=${price}`}
+            <button
+              onClick={handleGetRoom}
               className="block w-full mt-6 py-3 bg-[#5c3d2e] text-white rounded-xl font-bold hover:bg-[#7a5240] transition text-center"
             >
               GET ROOM
-            </a>
+            </button>
 
             <p className="text-xs text-[#9c8878] text-center mt-3">
-              You will be asked to register or log in after clicking GET ROOM
+              {user
+                ? `Applying as ${user.name}`
+                : "You will be asked to register or log in after clicking GET ROOM"}
             </p>
           </div>
         </div>
       </div>
+
+      {/* Confirmation Popup */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-xl font-black text-[#3b2314] mb-2">
+              Confirm Room Application
+            </h3>
+            <p className="text-sm text-[#9c8878] mb-6">You are applying for:</p>
+
+            <div className="bg-[#fdf6ec] rounded-xl p-4 mb-6 flex flex-col gap-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-[#9c8878]">Room</span>
+                <span className="font-bold text-[#3b2314]">{name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#9c8878]">Type</span>
+                <span className="font-bold text-[#3b2314]">{type}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#9c8878]">Monthly Rate</span>
+                <span className="font-bold text-[#3b2314]">
+                  P{parseInt(price).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-[#e8ddd0] pt-2">
+                <span className="text-[#9c8878]">Applying as</span>
+                <span className="font-bold text-[#3b2314]">{user?.name}</span>
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-red-500 text-sm mb-4 text-center">{error}</p>
+            )}
+
+            <p className="text-xs text-[#9c8878] text-center mb-4">
+              Your application will be reviewed by the admin. You will be
+              notified once approved.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowConfirm(false);
+                  setError("");
+                }}
+                className="flex-1 py-3 border border-[#d6c4b0] text-[#5c3d2e] font-bold rounded-xl hover:bg-[#f5ede0] transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={submitting}
+                className="flex-1 py-3 bg-[#5c3d2e] text-white font-bold rounded-xl hover:bg-[#7a5240] transition text-sm disabled:opacity-50"
+              >
+                {submitting ? "Submitting..." : "Confirm Application"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
