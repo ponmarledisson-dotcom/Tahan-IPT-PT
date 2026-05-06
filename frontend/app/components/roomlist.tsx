@@ -8,7 +8,7 @@ type Room = {
   id: number;
   name: string;
   type: "Private" | "Bedspacer";
-  gender_type: "Male" | "Female" | "Mixed";
+  gender_type: "Male Only" | "Female Only" | "Mixed";
   price: number;
   rating: number;
   available: boolean;
@@ -23,8 +23,8 @@ type Room = {
 const BACKEND_URL = "http://127.0.0.1:8000";
 
 const GENDER_BADGE = {
-  Male: { label: "Boys Only", bg: "#dbeafe", color: "#1e40af" },
-  Female: { label: "Girls Only", bg: "#fce7f3", color: "#9d174d" },
+  "Male Only": { label: "Boys Only", bg: "#dbeafe", color: "#1e40af" },
+  "Female Only": { label: "Girls Only", bg: "#fce7f3", color: "#9d174d" },
   Mixed: { label: "Mixed", bg: "#f3f4f6", color: "#374151" },
 };
 
